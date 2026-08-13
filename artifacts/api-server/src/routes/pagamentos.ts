@@ -1,0 +1,87 @@
+import { Router, type IRouter } from "express";
+import { eq } from "drizzle-orm";
+import { db, pagamentosTable, gruposTable, participantesTable } from "@workspace/db";
+import {
+  CreatePagamentoBody,
+  CreatePagamentoParams,
+  ListPagamentosParams,
+} from "@workspace/api-zod";
+
+const router: IRouter = Router();
+
+router.get("/grupos/:grupoId/pagamentos", async (req, res): Promise<void> => {
+  const params = ListPagamentosParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+
+  const pagamentos = await db
+    .select()
+    .from(pagamentosTable)
+    .where(eq(pagamentosTable.grupoId, params.data.grupoId))
+    .orderBy(pagamentosTable.criadoEm);
+
+  res.json(
+    pagamentos.map((p) => ({
+      ...p,
+      valor: parseFloat(p.valor),
+    }))
+  );
+});
+
+router.post("/grupos/:grupoId/pagamentos", async (req, res): Promise<void> => {
+  const params = CreatePagamentoParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+
+  const parsed = CreatePagamentoBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+
+  const [grupo] = await db
+    .select()
+    .from(gruposTable)
+    .where(eq(gruposTable.id, params.data.grupoId));
+
+  if (!grupo) {
+    res.status(404).json({ error: "Grupo não encontrado" });
+    return;
+  }
+
+  const [de] = await db
+    .select()
+    .from(participantesTable)
+    .where(eq(participantesTable.id, parsed.data.deId));
+
+  const [para] = await db
+    .select()
+    .from(participantesTable)
+    .where(eq(participantesTable.id, parsed.data.paraId));
+
+  if (!de || !para) {
+    res.status(404).json({ error: "Participante não encontrado" });
+    return;
+  }
+
+  const [pag] = await db
+    .insert(pagamentosTable)
+    .values({
+      deId: parsed.data.deId,
+      paraId: parsed.data.paraId,
+      grupoId: params.data.grupoId,
+      valor: String(parsed.data.valor),
+    })
+    .returning();
+
+  res.status(201).json({
+    ...pag,
+    valor: parseFloat(pag.valor),
+  });
+});
+
+export default router;

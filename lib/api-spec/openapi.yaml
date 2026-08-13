@@ -3,13 +3,24 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Rachador - Group expense splitting API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: grupos
+    description: Group operations
+  - name: participantes
+    description: Participant operations
+  - name: despesas
+    description: Expense operations
+  - name: saldo
+    description: Balance operations
+  - name: pagamentos
+    description: Payment operations
+
 paths:
   /healthz:
     get:
@@ -24,6 +35,308 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /grupos:
+    post:
+      operationId: createGrupo
+      tags: [grupos]
+      summary: Create a new group
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GrupoInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GrupoComParticipantes"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /grupos/by-code/{codigo}:
+    get:
+      operationId: getGrupoByCodigo
+      tags: [grupos]
+      summary: Get group by invite code
+      parameters:
+        - name: codigo
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GrupoComParticipantes"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /grupos/{grupoId}:
+    get:
+      operationId: getGrupo
+      tags: [grupos]
+      summary: Get group by ID
+      parameters:
+        - name: grupoId
+          in: path
+          required: true
+          schema:
+            type: number
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GrupoComParticipantes"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /grupos/{grupoId}/participantes:
+    post:
+      operationId: addParticipante
+      tags: [participantes]
+      summary: Add participant to group
+      parameters:
+        - name: grupoId
+          in: path
+          required: true
+          schema:
+            type: number
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ParticipanteInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Participante"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Group not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /participantes/{id}:
+    patch:
+      operationId: updateParticipante
+      tags: [participantes]
+      summary: Update participant (name, pix key)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: number
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ParticipanteUpdate"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Participante"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /grupos/{grupoId}/despesas:
+    get:
+      operationId: listDespesas
+      tags: [despesas]
+      summary: List expenses for a group
+      parameters:
+        - name: grupoId
+          in: path
+          required: true
+          schema:
+            type: number
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DespesaComDivisoes"
+    post:
+      operationId: createDespesa
+      tags: [despesas]
+      summary: Create expense in group
+      parameters:
+        - name: grupoId
+          in: path
+          required: true
+          schema:
+            type: number
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DespesaInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DespesaComDivisoes"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /despesas/{id}:
+    delete:
+      operationId: deleteDespesa
+      tags: [despesas]
+      summary: Delete expense
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: number
+      responses:
+        "204":
+          description: No content
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /grupos/{grupoId}/saldo:
+    get:
+      operationId: getSaldo
+      tags: [saldo]
+      summary: Get simplified balance for a group (who owes whom)
+      parameters:
+        - name: grupoId
+          in: path
+          required: true
+          schema:
+            type: number
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Saldo"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /grupos/{grupoId}/pagamentos:
+    get:
+      operationId: listPagamentos
+      tags: [pagamentos]
+      summary: List payments for a group
+      parameters:
+        - name: grupoId
+          in: path
+          required: true
+          schema:
+            type: number
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Pagamento"
+    post:
+      operationId: createPagamento
+      tags: [pagamentos]
+      summary: Mark a debt as paid
+      parameters:
+        - name: grupoId
+          in: path
+          required: true
+          schema:
+            type: number
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PagamentoInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Pagamento"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +347,254 @@ components:
       required:
         - status
 
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
+
+    Grupo:
+      type: object
+      properties:
+        id:
+          type: number
+        nome:
+          type: string
+        codigoConvite:
+          type: string
+        criadoEm:
+          type: string
+          format: date-time
+      required:
+        - id
+        - nome
+        - codigoConvite
+        - criadoEm
+
+    GrupoComParticipantes:
+      type: object
+      properties:
+        id:
+          type: number
+        nome:
+          type: string
+        codigoConvite:
+          type: string
+        criadoEm:
+          type: string
+          format: date-time
+        participantes:
+          type: array
+          items:
+            $ref: "#/components/schemas/Participante"
+      required:
+        - id
+        - nome
+        - codigoConvite
+        - criadoEm
+        - participantes
+
+    GrupoInput:
+      type: object
+      properties:
+        nome:
+          type: string
+          minLength: 1
+        participantes:
+          type: array
+          items:
+            $ref: "#/components/schemas/ParticipanteInput"
+          minItems: 1
+      required:
+        - nome
+        - participantes
+
+    Participante:
+      type: object
+      properties:
+        id:
+          type: number
+        nome:
+          type: string
+        chavePix:
+          type: ["string", "null"]
+        grupoId:
+          type: number
+        criadoEm:
+          type: string
+          format: date-time
+      required:
+        - id
+        - nome
+        - chavePix
+        - grupoId
+        - criadoEm
+
+    ParticipanteInput:
+      type: object
+      properties:
+        nome:
+          type: string
+          minLength: 1
+        chavePix:
+          type: ["string", "null"]
+      required:
+        - nome
+
+    ParticipanteUpdate:
+      type: object
+      properties:
+        nome:
+          type: string
+          minLength: 1
+        chavePix:
+          type: ["string", "null"]
+
+    Divisao:
+      type: object
+      properties:
+        participanteId:
+          type: number
+        valorDevido:
+          type: number
+      required:
+        - participanteId
+        - valorDevido
+
+    DespesaComDivisoes:
+      type: object
+      properties:
+        id:
+          type: number
+        descricao:
+          type: string
+        valor:
+          type: number
+        pagoPorId:
+          type: number
+        grupoId:
+          type: number
+        criadoEm:
+          type: string
+          format: date-time
+        divisoes:
+          type: array
+          items:
+            $ref: "#/components/schemas/Divisao"
+      required:
+        - id
+        - descricao
+        - valor
+        - pagoPorId
+        - grupoId
+        - criadoEm
+        - divisoes
+
+    DespesaInput:
+      type: object
+      properties:
+        descricao:
+          type: string
+          minLength: 1
+        valor:
+          type: number
+          minimum: 0.01
+        pagoPorId:
+          type: number
+        divisoes:
+          type: array
+          items:
+            $ref: "#/components/schemas/Divisao"
+          minItems: 1
+      required:
+        - descricao
+        - valor
+        - pagoPorId
+        - divisoes
+
+    DebitoItem:
+      type: object
+      properties:
+        deId:
+          type: number
+        paraId:
+          type: number
+        valor:
+          type: number
+      required:
+        - deId
+        - paraId
+        - valor
+
+    ParticipanteSaldo:
+      type: object
+      properties:
+        participanteId:
+          type: number
+        nome:
+          type: string
+        saldoLiquido:
+          type: number
+      required:
+        - participanteId
+        - nome
+        - saldoLiquido
+
+    Saldo:
+      type: object
+      properties:
+        debitos:
+          type: array
+          items:
+            $ref: "#/components/schemas/DebitoItem"
+        participantes:
+          type: array
+          items:
+            $ref: "#/components/schemas/ParticipanteSaldo"
+        totalGasto:
+          type: number
+      required:
+        - debitos
+        - participantes
+        - totalGasto
+
+    Pagamento:
+      type: object
+      properties:
+        id:
+          type: number
+        deId:
+          type: number
+        paraId:
+          type: number
+        grupoId:
+          type: number
+        valor:
+          type: number
+        criadoEm:
+          type: string
+          format: date-time
+      required:
+        - id
+        - deId
+        - paraId
+        - grupoId
+        - valor
+        - criadoEm
+
+    PagamentoInput:
+      type: object
+      properties:
+        deId:
+          type: number
+        paraId:
+          type: number
+        valor:
+          type: number
+          minimum: 0.01
+      required:
+        - deId
+        - paraId
+        - valor

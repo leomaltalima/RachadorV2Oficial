@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "Rachador"
+description = "A group expense-splitting web app for friends on trips. Users create a group, add participants, log shared expenses with flexible splits, see a simplified balance of who owes whom, mark debts as paid, and copy Pix keys to pay without leaving the app."
+version = "1.0.0"
+id = "artifacts/rachador"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 18548
+
+[services.development]
+run = "pnpm --filter @workspace/rachador run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/rachador", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/rachador/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "18548"
+BASE_PATH = "/"
