@@ -55,16 +55,27 @@ router.post("/participantes/:id/claim", async (req, res): Promise<void> => {
     return;
   }
 
+  // Check if already claimed by someone else
+  const [existing] = await db
+    .select()
+    .from(participantesTable)
+    .where(eq(participantesTable.id, id));
+
+  if (!existing) {
+    res.status(404).json({ error: "Participante não encontrado" });
+    return;
+  }
+
+  if (existing.clerkUserId != null && existing.clerkUserId !== userId) {
+    res.status(409).json({ error: "Este participante já está vinculado a outra conta" });
+    return;
+  }
+
   const [part] = await db
     .update(participantesTable)
     .set({ clerkUserId: userId })
     .where(eq(participantesTable.id, id))
     .returning();
-
-  if (!part) {
-    res.status(404).json({ error: "Participante não encontrado" });
-    return;
-  }
 
   res.json(part);
 });

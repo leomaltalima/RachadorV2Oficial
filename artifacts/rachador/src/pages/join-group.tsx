@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent } from "@/components/ui/card"
-import { ChevronRight, UserPlus } from "lucide-react"
+import { ChevronRight, UserPlus, Lock } from "lucide-react"
 
 export default function JoinGroup() {
   const { grupoId: idStr } = useParams()
@@ -93,26 +93,45 @@ export default function JoinGroup() {
           <div className="space-y-4">
             {grupo.participantes.length > 0 ? (
               <div className="space-y-2">
-                {grupo.participantes.map(p => (
-                  <button
-                    key={p.id}
-                    onClick={() => handleSelect(p.id)}
-                    className="w-full flex items-center justify-between p-4 rounded-2xl border-2 border-border/60 bg-card hover:border-primary/60 hover:bg-primary/5 transition-all text-left group"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center shrink-0 font-bold text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary transition-colors">
-                        {p.nome.charAt(0).toUpperCase()}
+                {(grupo.participantes as (typeof grupo.participantes[0] & { claimado?: boolean })[]).map(p => {
+                  const claimed = !!p.claimado
+                  return claimed ? (
+                    <div
+                      key={p.id}
+                      className="w-full flex items-center justify-between p-4 rounded-2xl border-2 border-border/30 bg-muted/40 opacity-60 cursor-not-allowed select-none"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center shrink-0 font-bold text-muted-foreground">
+                          {p.nome.charAt(0).toUpperCase()}
+                        </div>
+                        <div>
+                          <p className="font-bold text-foreground">{p.nome}</p>
+                          <p className="text-xs text-muted-foreground">Já vinculado a uma conta</p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="font-bold text-foreground">{p.nome}</p>
-                        {p.chavePix && (
-                          <p className="text-xs text-muted-foreground truncate max-w-[200px]">Pix: {p.chavePix}</p>
-                        )}
-                      </div>
+                      <Lock className="w-4 h-4 text-muted-foreground" />
                     </div>
-                    <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
-                  </button>
-                ))}
+                  ) : (
+                    <button
+                      key={p.id}
+                      onClick={() => handleSelect(p.id)}
+                      className="w-full flex items-center justify-between p-4 rounded-2xl border-2 border-border/60 bg-card hover:border-primary/60 hover:bg-primary/5 transition-all text-left group"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center shrink-0 font-bold text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary transition-colors">
+                          {p.nome.charAt(0).toUpperCase()}
+                        </div>
+                        <div>
+                          <p className="font-bold text-foreground">{p.nome}</p>
+                          {p.chavePix && (
+                            <p className="text-xs text-muted-foreground truncate max-w-[200px]">Pix: {p.chavePix}</p>
+                          )}
+                        </div>
+                      </div>
+                      <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
+                    </button>
+                  )
+                })}
               </div>
             ) : (
               <Card className="border-dashed">

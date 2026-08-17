@@ -63,7 +63,13 @@ router.get("/grupos/by-code/:codigo", async (req, res): Promise<void> => {
     .from(participantesTable)
     .where(eq(participantesTable.grupoId, grupo.id));
 
-  res.json({ ...grupo, participantes: parts });
+  res.json({
+    ...grupo,
+    participantes: parts.map(({ clerkUserId, ...p }) => ({
+      ...p,
+      claimado: clerkUserId != null,
+    })),
+  });
 });
 
 router.get("/grupos/:grupoId", async (req, res): Promise<void> => {
@@ -88,7 +94,13 @@ router.get("/grupos/:grupoId", async (req, res): Promise<void> => {
     .from(participantesTable)
     .where(eq(participantesTable.grupoId, grupo.id));
 
-  res.json({ ...grupo, participantes: parts });
+  res.json({
+    ...grupo,
+    participantes: parts.map(({ clerkUserId, ...p }) => ({
+      ...p,
+      claimado: clerkUserId != null,
+    })),
+  });
 });
 
 // Update group image — only the creator can do this
