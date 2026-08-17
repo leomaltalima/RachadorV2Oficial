@@ -1,13 +1,13 @@
 import { useState } from "react"
 import { useLocation } from "wouter"
 import { useAuth, useUser, useClerk } from "@clerk/react"
-import { useQuery } from "@tanstack/react-query"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { useGetGrupoByCodigo } from "@workspace/api-client-react"
-import { getSession, setSession } from "@/lib/session"
-import { ArrowRight, PlusCircle, UsersRound, LogOut, Users, ChevronRight, LogIn } from "lucide-react"
+import { getSession, setSession, clearSession } from "@/lib/session"
+import { PlusCircle, UsersRound, LogOut, Users, ChevronRight, LogIn, DoorOpen } from "lucide-react"
 import { formatCurrency } from "@/lib/utils"
 
 interface MeuGrupo {
@@ -24,9 +24,11 @@ interface MeuGrupo {
 export default function Home() {
   const [, setLocation] = useLocation()
   const [codigo, setCodigo] = useState("")
+  const [leavingId, setLeavingId] = useState<number | null>(null)
   const { isSignedIn } = useAuth()
   const { user } = useUser()
   const { signOut } = useClerk()
+  const queryClient = useQueryClient()
 
   const { data: grupo, isError } = useGetGrupoByCodigo(codigo, {
     query: { enabled: codigo.length === 6 }
@@ -49,9 +51,24 @@ export default function Home() {
   })
 
   const handleEnterGroup = (g: MeuGrupo) => {
-    // Restore session from known participant
     setSession(g.grupo.id, g.participante.id)
     setLocation(`/g/${g.grupo.id}`)
+  }
+
+  const handleLeaveGroup = async (e: React.MouseEvent, g: MeuGrupo) => {
+    e.stopPropagation()
+    if (leavingId === g.participante.id) {
+      // Second click = confirm
+      await fetch(`/api/participantes/${g.participante.id}/leave`, {
+        method: "DELETE",
+        credentials: "include",
+      })
+      clearSession(g.grupo.id)
+      queryClient.invalidateQueries({ queryKey: ["me/grupos"] })
+      setLeavingId(null)
+    } else {
+      setLeavingId(g.participante.id)
+    }
   }
 
   return (
@@ -110,24 +127,41 @@ export default function Home() {
                 <div className="text-center py-4 text-muted-foreground text-sm">Carregando...</div>
               ) : meusGrupos && meusGrupos.length > 0 ? (
                 <div className="space-y-2">
-                  {meusGrupos.map(g => (
-                    <button
-                      key={g.grupo.id}
-                      onClick={() => handleEnterGroup(g)}
-                      className="w-full flex items-center gap-3 p-4 rounded-2xl border-2 border-border/60 bg-card hover:border-primary/50 hover:bg-primary/5 transition-all text-left group"
-                    >
-                      <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
-                        <Users className="w-5 h-5 text-primary" />
+                  {meusGrupos.map(g => {
+                    const confirming = leavingId === g.participante.id
+                    return (
+                      <div key={g.grupo.id} className="flex items-stretch gap-2">
+                        <button
+                          onClick={() => handleEnterGroup(g)}
+                          className="flex-1 flex items-center gap-3 p-4 rounded-2xl border-2 border-border/60 bg-card hover:border-primary/50 hover:bg-primary/5 transition-all text-left group"
+                        >
+                          <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                            <Users className="w-5 h-5 text-primary" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-bold text-foreground truncate">{g.grupo.nome}</p>
+                            <p className="text-xs text-muted-foreground">
+                              Como {g.participante.nome} · {g.grupo.participantes.length} participantes
+                            </p>
+                          </div>
+                          <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors shrink-0" />
+                        </button>
+
+                        <button
+                          onClick={e => handleLeaveGroup(e, g)}
+                          title={confirming ? "Confirmar saída" : "Sair do grupo"}
+                          className={`flex flex-col items-center justify-center gap-1 px-3 rounded-2xl border-2 transition-all text-xs font-medium shrink-0 ${
+                            confirming
+                              ? "border-destructive bg-destructive text-destructive-foreground"
+                              : "border-border/60 bg-card text-muted-foreground hover:border-destructive/50 hover:text-destructive hover:bg-destructive/5"
+                          }`}
+                        >
+                          <DoorOpen className="w-4 h-4" />
+                          <span>{confirming ? "Confirmar" : "Sair"}</span>
+                        </button>
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-bold text-foreground truncate">{g.grupo.nome}</p>
-                        <p className="text-xs text-muted-foreground">
-                          Como {g.participante.nome} · {g.grupo.participantes.length} participantes
-                        </p>
-                      </div>
-                      <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors shrink-0" />
-                    </button>
-                  ))}
+                    )
+                  })}
                 </div>
               ) : (
                 <Card className="border-dashed bg-transparent">

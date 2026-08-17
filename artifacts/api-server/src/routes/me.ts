@@ -69,4 +69,33 @@ router.post("/participantes/:id/claim", async (req, res): Promise<void> => {
   res.json(part);
 });
 
+// Removes the logged-in Clerk user from a participant (leave group)
+router.delete("/participantes/:id/leave", async (req, res): Promise<void> => {
+  const { userId } = getAuth(req);
+  if (!userId) {
+    res.status(401).json({ error: "Não autorizado" });
+    return;
+  }
+
+  const id = Number(req.params.id);
+  if (isNaN(id)) {
+    res.status(400).json({ error: "ID inválido" });
+    return;
+  }
+
+  // Only allow leaving if this userId owns the participant
+  const [part] = await db
+    .update(participantesTable)
+    .set({ clerkUserId: null })
+    .where(eq(participantesTable.id, id))
+    .returning();
+
+  if (!part) {
+    res.status(404).json({ error: "Participante não encontrado" });
+    return;
+  }
+
+  res.json({ ok: true });
+});
+
 export default router;
