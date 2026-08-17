@@ -1,9 +1,9 @@
 import { useState, useRef, useEffect } from "react"
 import { useLocation, useParams } from "wouter"
-import { 
-  useGetGrupo, 
-  useListDespesas, 
-  useGetSaldo, 
+import {
+  useGetGrupo,
+  useListDespesas,
+  useGetSaldo,
   useListPagamentos,
   useDeleteDespesa,
   useCreatePagamento,
@@ -15,6 +15,7 @@ import {
   getGetGrupoQueryKey
 } from "@workspace/api-client-react"
 import { useQueryClient } from "@tanstack/react-query"
+import { useUser } from "@clerk/react"
 import { getSession, clearSession } from "@/lib/session"
 
 import { Button } from "@/components/ui/button"
@@ -26,7 +27,17 @@ import { Input } from "@/components/ui/input"
 import { useToast } from "@/hooks/use-toast"
 import { formatCurrency, formatDate } from "@/lib/utils"
 
-import { ArrowLeft, Copy, Plus, Receipt, UserPlus, Trash2, CheckCircle2, ArrowRight, ImagePlus, X, Undo2, UserCircle2, RefreshCw } from "lucide-react"
+import { ArrowLeft, Copy, Plus, Receipt, UserPlus, Trash2, CheckCircle2, ArrowRight, ImagePlus, X, Undo2, Camera, Pencil } from "lucide-react"
+
+// Extended tipo para incluir os campos novos que o servidor retorna
+type GrupoExtended = {
+  id: number
+  nome: string
+  codigoConvite: string
+  imagem?: string | null
+  criadorClerkUserId?: string | null
+  participantes: { id: number; nome: string; chavePix: string | null }[]
+}
 
 export default function GroupDashboard() {
   const { grupoId: idStr } = useParams()
@@ -34,12 +45,14 @@ export default function GroupDashboard() {
   const [, setLocation] = useLocation()
   const { toast } = useToast()
   const queryClient = useQueryClient()
-  const fileInputRef = useRef<HTMLInputElement>(null)
+  const { user, isSignedIn } = useUser()
 
-  // Session: who the current user is in this group
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const groupImageInputRef = useRef<HTMLInputElement>(null)
+  const profileImageInputRef = useRef<HTMLInputElement>(null)
+
   const [myParticipantId, setMyParticipantId] = useState<number | null>(() => getSession(grupoId))
 
-  // Redirect to identify screen if no session
   useEffect(() => {
     if (myParticipantId === null) {
       setLocation(`/g/${grupoId}/entrar`)
@@ -55,33 +68,29 @@ export default function GroupDashboard() {
   const [isAddParticipantOpen, setIsAddParticipantOpen] = useState(false)
   const [newParticipantName, setNewParticipantName] = useState("")
   const [newParticipantPix, setNewParticipantPix] = useState("")
-
   const [isPayOpen, setIsPayOpen] = useState(false)
   const [payDeId, setPayDeId] = useState<number | null>(null)
   const [payParaId, setPayParaId] = useState<number | null>(null)
   const [payValor, setPayValor] = useState<number>(0)
   const [payComprovante, setPayComprovante] = useState<string | null>(null)
+  const [updatingGroupImage, setUpdatingGroupImage] = useState(false)
+  const [updatingProfileImage, setUpdatingProfileImage] = useState(false)
 
-  const { data: grupo, isLoading: loadingGrupo } = useGetGrupo(grupoId, {
+  const { data: grupoRaw, isLoading: loadingGrupo } = useGetGrupo(grupoId, {
     query: { enabled: !!grupoId }
   })
-  
-  const { data: despesas, isLoading: loadingDespesas } = useListDespesas(grupoId, {
-    query: { enabled: !!grupoId }
-  })
+  const grupo = grupoRaw as unknown as GrupoExtended | undefined
 
-  const { data: saldo, isLoading: loadingSaldo } = useGetSaldo(grupoId, {
-    query: { enabled: !!grupoId }
-  })
-
-  const { data: pagamentos, isLoading: loadingPagamentos } = useListPagamentos(grupoId, {
-    query: { enabled: !!grupoId }
-  })
+  const { data: despesas, isLoading: loadingDespesas } = useListDespesas(grupoId, { query: { enabled: !!grupoId } })
+  const { data: saldo, isLoading: loadingSaldo } = useGetSaldo(grupoId, { query: { enabled: !!grupoId } })
+  const { data: pagamentos, isLoading: loadingPagamentos } = useListPagamentos(grupoId, { query: { enabled: !!grupoId } })
 
   const deleteDespesa = useDeleteDespesa()
   const createPagamento = useCreatePagamento()
   const deletePagamento = useDeletePagamento()
   const addParticipante = useAddParticipante()
+
+  const isCreator = isSignedIn && grupo?.criadorClerkUserId && user?.id === grupo.criadorClerkUserId
 
   const handleCopyInvite = () => {
     if (grupo?.codigoConvite) {
@@ -109,10 +118,7 @@ export default function GroupDashboard() {
 
   const handleAddParticipant = () => {
     if (!newParticipantName) return
-    addParticipante.mutate({
-      grupoId,
-      data: { nome: newParticipantName, chavePix: newParticipantPix || null }
-    }, {
+    addParticipante.mutate({ grupoId, data: { nome: newParticipantName, chavePix: newParticipantPix || null } }, {
       onSuccess: () => {
         setIsAddParticipantOpen(false)
         setNewParticipantName("")
@@ -127,29 +133,19 @@ export default function GroupDashboard() {
     const file = e.target.files?.[0]
     if (!file) return
     const reader = new FileReader()
-    reader.onload = (ev) => {
-      setPayComprovante(ev.target?.result as string)
-    }
+    reader.onload = (ev) => setPayComprovante(ev.target?.result as string)
     reader.readAsDataURL(file)
   }
 
   const handleOpenPayDialog = (deId: number, paraId: number, valor: number) => {
-    setPayDeId(deId)
-    setPayParaId(paraId)
-    setPayValor(valor)
-    setPayComprovante(null)
-    setIsPayOpen(true)
+    setPayDeId(deId); setPayParaId(paraId); setPayValor(valor); setPayComprovante(null); setIsPayOpen(true)
   }
 
   const handlePay = () => {
     if (payDeId && payParaId && payValor > 0) {
-      createPagamento.mutate({
-        grupoId,
-        data: { deId: payDeId, paraId: payParaId, valor: payValor, comprovante: payComprovante ?? null }
-      }, {
+      createPagamento.mutate({ grupoId, data: { deId: payDeId, paraId: payParaId, valor: payValor, comprovante: payComprovante ?? null } }, {
         onSuccess: () => {
-          setIsPayOpen(false)
-          setPayComprovante(null)
+          setIsPayOpen(false); setPayComprovante(null)
           queryClient.invalidateQueries({ queryKey: getGetSaldoQueryKey(grupoId) })
           queryClient.invalidateQueries({ queryKey: getListPagamentosQueryKey(grupoId) })
           toast({ title: "Pagamento registrado com sucesso!" })
@@ -170,6 +166,50 @@ export default function GroupDashboard() {
     }
   }
 
+  // Atualiza a imagem do grupo (apenas o criador)
+  const handleGroupImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUpdatingGroupImage(true)
+    const reader = new FileReader()
+    reader.onload = async (ev) => {
+      const base64 = ev.target?.result as string
+      try {
+        const res = await fetch(`/api/grupos/${grupoId}/imagem`, {
+          method: "PATCH",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ imagem: base64 }),
+        })
+        if (!res.ok) throw new Error()
+        queryClient.invalidateQueries({ queryKey: getGetGrupoQueryKey(grupoId) })
+        toast({ title: "Imagem do grupo atualizada!" })
+      } catch {
+        toast({ title: "Erro ao atualizar imagem", variant: "destructive" })
+      } finally {
+        setUpdatingGroupImage(false)
+        if (groupImageInputRef.current) groupImageInputRef.current.value = ""
+      }
+    }
+    reader.readAsDataURL(file)
+  }
+
+  // Atualiza a foto de perfil do usuário via Clerk
+  const handleProfileImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file || !user) return
+    setUpdatingProfileImage(true)
+    try {
+      await user.setProfileImage({ file })
+      toast({ title: "Foto de perfil atualizada!" })
+    } catch {
+      toast({ title: "Erro ao atualizar foto", variant: "destructive" })
+    } finally {
+      setUpdatingProfileImage(false)
+      if (profileImageInputRef.current) profileImageInputRef.current.value = ""
+    }
+  }
+
   const getParticipantName = (id: number) => grupo?.participantes.find(p => p.id === id)?.nome || "Alguém"
   const getParticipantPix = (id: number) => grupo?.participantes.find(p => p.id === id)?.chavePix
 
@@ -180,10 +220,35 @@ export default function GroupDashboard() {
     <div className="min-h-[100dvh] flex flex-col bg-background max-w-3xl mx-auto w-full">
       <header className="sticky top-0 z-10 bg-background/80 backdrop-blur-md border-b border-border/50 p-4 pt-6">
         <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2 min-w-0">
+          <div className="flex items-center gap-3 min-w-0">
             <Button variant="ghost" size="icon" className="shrink-0 -ml-2" onClick={() => setLocation("/")}>
               <ArrowLeft className="w-5 h-5" />
             </Button>
+
+            {/* Avatar do grupo */}
+            <div className="relative shrink-0 group">
+              <div
+                className={`w-10 h-10 rounded-xl overflow-hidden bg-primary/10 flex items-center justify-center ${isCreator ? "cursor-pointer" : ""}`}
+                onClick={() => isCreator && groupImageInputRef.current?.click()}
+                title={isCreator ? "Alterar imagem do grupo" : undefined}
+              >
+                {grupo.imagem ? (
+                  <img src={grupo.imagem} alt={grupo.nome} className="w-full h-full object-cover" />
+                ) : (
+                  <span className="text-primary font-extrabold text-sm">{grupo.nome.charAt(0).toUpperCase()}</span>
+                )}
+              </div>
+              {isCreator && (
+                <div
+                  className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-primary text-white flex items-center justify-center cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity shadow-sm"
+                  onClick={() => groupImageInputRef.current?.click()}
+                >
+                  <Pencil className="w-2.5 h-2.5" />
+                </div>
+              )}
+              <input ref={groupImageInputRef} type="file" accept="image/*" className="hidden" onChange={handleGroupImageChange} />
+            </div>
+
             <div className="min-w-0">
               <h1 className="text-xl font-bold truncate leading-tight">{grupo.nome}</h1>
               <div className="flex items-center gap-2 text-sm text-muted-foreground mt-0.5">
@@ -195,20 +260,43 @@ export default function GroupDashboard() {
             </div>
           </div>
 
-          {/* Logged-in user chip */}
-          {myParticipantId && (
+          {/* Chip do usuário logado */}
+          <div className="shrink-0 flex items-center gap-1">
+            {isSignedIn && (
+              <div className="relative group/avatar">
+                <button
+                  className={`w-8 h-8 rounded-full overflow-hidden bg-secondary border-2 border-border flex items-center justify-center ${updatingProfileImage ? "opacity-60" : ""}`}
+                  onClick={() => profileImageInputRef.current?.click()}
+                  title="Alterar foto de perfil"
+                >
+                  {user?.imageUrl ? (
+                    <img src={user.imageUrl} alt="" className="w-full h-full object-cover" />
+                  ) : (
+                    <span className="text-xs font-bold text-muted-foreground">
+                      {user?.firstName?.charAt(0) ?? user?.emailAddresses?.[0]?.emailAddress?.charAt(0) ?? "?"}
+                    </span>
+                  )}
+                </button>
+                <div
+                  className="absolute inset-0 rounded-full bg-black/40 flex items-center justify-center opacity-0 group-hover/avatar:opacity-100 transition-opacity cursor-pointer"
+                  onClick={() => profileImageInputRef.current?.click()}
+                >
+                  <Camera className="w-3.5 h-3.5 text-white" />
+                </div>
+                <input ref={profileImageInputRef} type="file" accept="image/*" className="hidden" onChange={handleProfileImageChange} />
+              </div>
+            )}
+
             <button
               onClick={handleSwitchUser}
-              className="shrink-0 flex items-center gap-1.5 bg-secondary hover:bg-secondary/80 transition-colors rounded-full pl-2 pr-3 py-1.5"
+              className="flex items-center gap-1.5 bg-secondary hover:bg-secondary/80 transition-colors rounded-full pl-2 pr-3 py-1.5 ml-1"
               title="Trocar usuário"
             >
-              <UserCircle2 className="w-4 h-4 text-primary" />
               <span className="text-xs font-semibold text-foreground max-w-[80px] truncate">
-                {getParticipantName(myParticipantId)}
+                {myParticipantId ? getParticipantName(myParticipantId) : "?"}
               </span>
-              <RefreshCw className="w-3 h-3 text-muted-foreground" />
             </button>
-          )}
+          </div>
         </div>
       </header>
 
@@ -228,7 +316,6 @@ export default function GroupDashboard() {
                 Total: {formatCurrency(saldo?.totalGasto || 0)}
               </span>
             </div>
-
             {loadingDespesas ? (
               <div className="p-8 text-center text-muted-foreground text-sm">Carregando despesas...</div>
             ) : despesas?.length === 0 ? (
@@ -329,9 +416,7 @@ export default function GroupDashboard() {
                     </Button>
                   </DialogTrigger>
                   <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Adicionar participante</DialogTitle>
-                    </DialogHeader>
+                    <DialogHeader><DialogTitle>Adicionar participante</DialogTitle></DialogHeader>
                     <div className="space-y-4 py-4">
                       <div className="space-y-2">
                         <Label>Nome</Label>
@@ -365,7 +450,7 @@ export default function GroupDashboard() {
                           )}
                         </div>
                       </div>
-                      <div className={`text-sm font-bold ${p.saldoLiquido > 0 ? 'text-green-600 dark:text-green-500' : p.saldoLiquido < 0 ? 'text-destructive' : 'text-muted-foreground'}`}>
+                      <div className={`text-sm font-bold ${p.saldoLiquido > 0 ? 'text-green-600' : p.saldoLiquido < 0 ? 'text-destructive' : 'text-muted-foreground'}`}>
                         {p.saldoLiquido > 0 ? '+' : ''}{formatCurrency(p.saldoLiquido)}
                       </div>
                     </div>
@@ -391,7 +476,6 @@ export default function GroupDashboard() {
                 {pagamentos?.map(pag => (
                   <Card key={pag.id} className="overflow-hidden border-border/60">
                     <div className="p-4 flex gap-3">
-                      {/* Comprovante thumbnail */}
                       {pag.comprovante && (
                         <Dialog>
                           <DialogTrigger asChild>
@@ -400,30 +484,21 @@ export default function GroupDashboard() {
                             </button>
                           </DialogTrigger>
                           <DialogContent className="max-w-sm">
-                            <DialogHeader>
-                              <DialogTitle>Comprovante</DialogTitle>
-                            </DialogHeader>
+                            <DialogHeader><DialogTitle>Comprovante</DialogTitle></DialogHeader>
                             <img src={pag.comprovante} alt="Comprovante" className="w-full rounded-xl" />
                           </DialogContent>
                         </Dialog>
                       )}
-
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold text-foreground">
                           {getParticipantName(pag.deId)} pagou {getParticipantName(pag.paraId)}
                         </p>
                         <p className="text-xs text-muted-foreground">{formatDate(pag.criadoEm)}</p>
                       </div>
-
                       <div className="flex items-center gap-2 shrink-0">
-                        <span className="font-bold text-sm text-green-600 dark:text-green-500">{formatCurrency(pag.valor)}</span>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                          title="Desfazer pagamento"
-                          onClick={() => handleUndoPagamento(pag.id)}
-                        >
+                        <span className="font-bold text-sm text-green-600">{formatCurrency(pag.valor)}</span>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                          title="Desfazer pagamento" onClick={() => handleUndoPagamento(pag.id)}>
                           <Undo2 className="w-3.5 h-3.5" />
                         </Button>
                       </div>
@@ -451,14 +526,10 @@ export default function GroupDashboard() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Confirmar Pagamento</DialogTitle>
-            <DialogDescription>
-              Marcar esta dívida como paga. Isso atualizará os saldos de ambos.
-            </DialogDescription>
+            <DialogDescription>Marcar esta dívida como paga. Isso atualizará os saldos de ambos.</DialogDescription>
           </DialogHeader>
-
           {payDeId && payParaId && (
             <div className="py-2 space-y-5">
-              {/* Quem pagou quem */}
               <div className="flex items-center justify-center gap-4 text-lg">
                 <span className="font-bold">{getParticipantName(payDeId)}</span>
                 <ArrowRight className="w-5 h-5 text-muted-foreground" />
@@ -467,17 +538,9 @@ export default function GroupDashboard() {
               <div className="text-center">
                 <span className="text-3xl font-extrabold text-foreground">{formatCurrency(payValor)}</span>
               </div>
-
-              {/* Comprovante */}
               <div className="space-y-2">
                 <Label className="text-sm font-medium">Comprovante <span className="text-muted-foreground font-normal">(opcional)</span></Label>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={handleComprovanteChange}
-                />
+                <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleComprovanteChange} />
                 {payComprovante ? (
                   <div className="relative w-full rounded-xl overflow-hidden border border-border/60">
                     <img src={payComprovante} alt="Comprovante" className="w-full max-h-48 object-contain bg-secondary/30" />
@@ -489,11 +552,8 @@ export default function GroupDashboard() {
                     </button>
                   </div>
                 ) : (
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    className="w-full h-24 rounded-xl border-2 border-dashed border-border/60 flex flex-col items-center justify-center gap-2 text-muted-foreground hover:border-primary/50 hover:text-primary transition-colors"
-                  >
+                  <button type="button" onClick={() => fileInputRef.current?.click()}
+                    className="w-full h-24 rounded-xl border-2 border-dashed border-border/60 flex flex-col items-center justify-center gap-2 text-muted-foreground hover:border-primary/50 hover:text-primary transition-colors">
                     <ImagePlus className="w-6 h-6" />
                     <span className="text-xs font-medium">Adicionar imagem do comprovante</span>
                   </button>
@@ -501,7 +561,6 @@ export default function GroupDashboard() {
               </div>
             </div>
           )}
-
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsPayOpen(false)}>Cancelar</Button>
             <Button onClick={handlePay} disabled={createPagamento.isPending}>

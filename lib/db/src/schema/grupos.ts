@@ -6,6 +6,8 @@ export const gruposTable = pgTable("grupos", {
   id: serial("id").primaryKey(),
   nome: text("nome").notNull(),
   codigoConvite: text("codigo_convite").notNull().unique(),
+  imagem: text("imagem"),
+  criadorClerkUserId: text("criador_clerk_user_id"),
   criadoEm: timestamp("criado_em", { withTimezone: true }).notNull().defaultNow(),
 });
 
