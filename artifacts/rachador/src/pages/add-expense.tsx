@@ -11,7 +11,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast"
 import { formatCurrency } from "@/lib/utils"
 
-import { ArrowLeft, Calculator, Users } from "lucide-react"
+import { ArrowLeft, Calculator, Users, UserCheck, Check } from "lucide-react"
+
+type SplitMode = "equal" | "select" | "custom"
 
 export default function AddExpense() {
   const { grupoId: idStr } = useParams()
@@ -26,12 +28,39 @@ export default function AddExpense() {
   const [descricao, setDescricao] = useState("")
   const [valorStr, setValorStr] = useState("")
   const [pagoPorId, setPagoPorId] = useState<string>("")
-  const [splitMode, setSplitMode] = useState<"equal" | "custom">("equal")
-  
+  const [splitMode, setSplitMode] = useState<SplitMode>("equal")
+
+  // For "select" mode – who's splitting (all selected by default after group loads)
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
+  const [selectedInitialized, setSelectedInitialized] = useState(false)
+
   // For custom split
   const [customSplits, setCustomSplits] = useState<Record<number, string>>({})
 
   const valor = parseFloat(valorStr.replace(',', '.')) || 0
+
+  // Initialize selectedIds once grupo loads
+  if (grupo && !selectedInitialized) {
+    setSelectedIds(new Set(grupo.participantes.map(p => p.id)))
+    setSelectedInitialized(true)
+  }
+
+  const toggleParticipant = (id: number) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) {
+        // Don't allow deselecting all
+        if (next.size === 1) return prev
+        next.delete(id)
+      } else {
+        next.add(id)
+      }
+      return next
+    })
+  }
+
+  const selectedCount = selectedIds.size
+  const perPersonSelect = selectedCount > 0 ? valor / selectedCount : 0
 
   const handleCustomSplitChange = (id: number, val: string) => {
     setCustomSplits(prev => ({ ...prev, [id]: val }))
@@ -46,12 +75,31 @@ export default function AddExpense() {
     let divisoes: { participanteId: number, valorDevido: number }[] = []
 
     if (splitMode === "equal") {
-      const perPerson = Number((valor / grupo!.participantes.length).toFixed(2))
-      // Adjust remainder
+      const participants = grupo!.participantes
+      const perPerson = Number((valor / participants.length).toFixed(2))
       let sum = 0
-      divisoes = grupo!.participantes.map((p, i) => {
+      divisoes = participants.map((p, i) => {
         let v = perPerson
-        if (i === grupo!.participantes.length - 1) {
+        if (i === participants.length - 1) {
+          v = Number((valor - sum).toFixed(2))
+        } else {
+          sum += v
+        }
+        return { participanteId: p.id, valorDevido: v }
+      })
+    } else if (splitMode === "select") {
+      const included = grupo!.participantes.filter(p => selectedIds.has(p.id))
+      if (included.length === 0) {
+        toast({ title: "Selecione pelo menos um participante", variant: "destructive" })
+        return
+      }
+      const perPerson = Number((valor / included.length).toFixed(2))
+      let sum = 0
+      divisoes = grupo!.participantes.map(p => {
+        if (!selectedIds.has(p.id)) return { participanteId: p.id, valorDevido: 0 }
+        const isLast = p.id === included[included.length - 1].id
+        let v = perPerson
+        if (isLast) {
           v = Number((valor - sum).toFixed(2))
         } else {
           sum += v
@@ -66,8 +114,8 @@ export default function AddExpense() {
         return { participanteId: p.id, valorDevido: v }
       })
       if (Math.abs(sum - valor) > 0.05) {
-         toast({ title: "A soma das divisões deve ser igual ao valor total", variant: "destructive" })
-         return
+        toast({ title: "A soma das divisões deve ser igual ao valor total", variant: "destructive" })
+        return
       }
     }
 
@@ -105,8 +153,8 @@ export default function AddExpense() {
           <CardContent className="pt-6 space-y-4">
             <div className="space-y-2">
               <Label>O que foi pago?</Label>
-              <Input 
-                placeholder="Ex: Cervejas, Aluguel da casa..." 
+              <Input
+                placeholder="Ex: Cervejas, Aluguel da casa..."
                 className="h-12 text-base"
                 value={descricao}
                 onChange={e => setDescricao(e.target.value)}
@@ -114,10 +162,10 @@ export default function AddExpense() {
             </div>
             <div className="space-y-2">
               <Label>Valor Total (R$)</Label>
-              <Input 
+              <Input
                 type="number"
                 step="0.01"
-                placeholder="0.00" 
+                placeholder="0.00"
                 className="h-14 text-2xl font-bold"
                 value={valorStr}
                 onChange={e => setValorStr(e.target.value)}
@@ -140,31 +188,39 @@ export default function AddExpense() {
         </Card>
 
         <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-bold">Como dividir?</h2>
-          </div>
+          <h2 className="text-lg font-bold">Como dividir?</h2>
 
-          <div className="grid grid-cols-2 gap-3">
-            <Button 
+          <div className="grid grid-cols-3 gap-2">
+            <Button
               type="button"
               variant={splitMode === "equal" ? "default" : "outline"}
-              className="h-14 border-2 shadow-none flex flex-col gap-1 items-center justify-center py-2"
+              className="h-16 border-2 shadow-none flex flex-col gap-1 items-center justify-center py-2 px-1"
               onClick={() => setSplitMode("equal")}
             >
               <Users className="w-4 h-4" />
-              <span className="text-xs">Igual para todos</span>
+              <span className="text-xs text-center leading-tight">Igual para todos</span>
             </Button>
-            <Button 
+            <Button
+              type="button"
+              variant={splitMode === "select" ? "default" : "outline"}
+              className="h-16 border-2 shadow-none flex flex-col gap-1 items-center justify-center py-2 px-1"
+              onClick={() => setSplitMode("select")}
+            >
+              <UserCheck className="w-4 h-4" />
+              <span className="text-xs text-center leading-tight">Escolher quem divide</span>
+            </Button>
+            <Button
               type="button"
               variant={splitMode === "custom" ? "default" : "outline"}
-              className="h-14 border-2 shadow-none flex flex-col gap-1 items-center justify-center py-2"
+              className="h-16 border-2 shadow-none flex flex-col gap-1 items-center justify-center py-2 px-1"
               onClick={() => setSplitMode("custom")}
             >
               <Calculator className="w-4 h-4" />
-              <span className="text-xs">Valores diferentes</span>
+              <span className="text-xs text-center leading-tight">Valores diferentes</span>
             </Button>
           </div>
 
+          {/* Equal: preview card */}
           {splitMode === "equal" && valor > 0 && (
             <Card className="bg-secondary/50 border-none">
               <CardContent className="p-4 flex items-center justify-between">
@@ -174,6 +230,48 @@ export default function AddExpense() {
             </Card>
           )}
 
+          {/* Select: pick participants */}
+          {splitMode === "select" && (
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground px-1">
+                Selecione quem participa dessa divisão
+              </p>
+              <div className="space-y-2">
+                {grupo.participantes.map(p => {
+                  const isSelected = selectedIds.has(p.id)
+                  return (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => toggleParticipant(p.id)}
+                      className={`w-full flex items-center justify-between p-3 rounded-xl border-2 transition-all text-left ${
+                        isSelected
+                          ? "border-primary bg-primary/5 text-foreground"
+                          : "border-border/50 bg-background text-muted-foreground"
+                      }`}
+                    >
+                      <span className="font-medium text-sm">{p.nome}</span>
+                      <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors ${
+                        isSelected ? "bg-primary border-primary" : "border-border"
+                      }`}>
+                        {isSelected && <Check className="w-3.5 h-3.5 text-primary-foreground" />}
+                      </div>
+                    </button>
+                  )
+                })}
+              </div>
+              {valor > 0 && selectedCount > 0 && (
+                <Card className="bg-secondary/50 border-none">
+                  <CardContent className="p-4 flex items-center justify-between">
+                    <span className="text-sm font-medium">Cada um paga ({selectedCount})</span>
+                    <span className="font-bold text-lg">{formatCurrency(perPersonSelect)}</span>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          )}
+
+          {/* Custom: enter amounts per person */}
           {splitMode === "custom" && (
             <div className="space-y-3 mt-4">
               {grupo.participantes.map(p => (
@@ -181,9 +279,9 @@ export default function AddExpense() {
                   <span className="font-medium text-sm w-1/2 truncate">{p.nome}</span>
                   <div className="relative w-1/2">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">R$</span>
-                    <Input 
-                      type="number" 
-                      step="0.01" 
+                    <Input
+                      type="number"
+                      step="0.01"
                       className="pl-8 text-right font-medium"
                       placeholder="0.00"
                       value={customSplits[p.id] || ""}
@@ -192,17 +290,16 @@ export default function AddExpense() {
                   </div>
                 </div>
               ))}
-              {/* helper for validation */}
               <div className="text-right text-xs text-muted-foreground pt-2">
-                Total distribuído: R$ {Object.values(customSplits).reduce((sum, v) => sum + (parseFloat(v.replace(',','.'))||0), 0).toFixed(2)} / {valor.toFixed(2)}
+                Total distribuído: R$ {Object.values(customSplits).reduce((sum, v) => sum + (parseFloat(v.replace(',', '.')) || 0), 0).toFixed(2)} / {valor.toFixed(2)}
               </div>
             </div>
           )}
         </div>
 
         <div className="pt-4 pb-8">
-          <Button 
-            size="lg" 
+          <Button
+            size="lg"
             className="w-full h-14 text-lg shadow-xl shadow-primary/20"
             onClick={onSubmit}
             disabled={createDespesa.isPending}
