@@ -104,6 +104,88 @@ router.get("/grupos/:grupoId", async (req, res): Promise<void> => {
   res.json({ ...grupo, participantes: mapParticipants(parts, userId) });
 });
 
+// Rename group — only the creator can do this
+router.patch("/grupos/:grupoId/nome", async (req, res): Promise<void> => {
+  const params = GetGrupoParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+
+  const { userId } = getAuth(req);
+  if (!userId) {
+    res.status(401).json({ error: "Não autorizado" });
+    return;
+  }
+
+  const [grupo] = await db
+    .select()
+    .from(gruposTable)
+    .where(eq(gruposTable.id, params.data.grupoId));
+
+  if (!grupo) {
+    res.status(404).json({ error: "Grupo não encontrado" });
+    return;
+  }
+
+  if (grupo.criadorClerkUserId !== userId) {
+    res.status(403).json({ error: "Apenas o criador pode renomear o grupo" });
+    return;
+  }
+
+  const { nome } = req.body as { nome: string };
+  if (!nome?.trim()) {
+    res.status(400).json({ error: "Nome inválido" });
+    return;
+  }
+
+  const [updated] = await db
+    .update(gruposTable)
+    .set({ nome: nome.trim() })
+    .where(eq(gruposTable.id, params.data.grupoId))
+    .returning();
+
+  res.json(updated);
+});
+
+// Remove participant — only the creator can do this
+router.delete("/grupos/:grupoId/participantes/:participanteId", async (req, res): Promise<void> => {
+  const grupoId = Number(req.params.grupoId);
+  const participanteId = Number(req.params.participanteId);
+
+  if (isNaN(grupoId) || isNaN(participanteId)) {
+    res.status(400).json({ error: "IDs inválidos" });
+    return;
+  }
+
+  const { userId } = getAuth(req);
+  if (!userId) {
+    res.status(401).json({ error: "Não autorizado" });
+    return;
+  }
+
+  const [grupo] = await db
+    .select()
+    .from(gruposTable)
+    .where(eq(gruposTable.id, grupoId));
+
+  if (!grupo) {
+    res.status(404).json({ error: "Grupo não encontrado" });
+    return;
+  }
+
+  if (grupo.criadorClerkUserId !== userId) {
+    res.status(403).json({ error: "Apenas o criador pode remover participantes" });
+    return;
+  }
+
+  await db
+    .delete(participantesTable)
+    .where(eq(participantesTable.id, participanteId));
+
+  res.json({ ok: true });
+});
+
 // Update group image — only the creator can do this
 router.patch("/grupos/:grupoId/imagem", async (req, res): Promise<void> => {
   const params = GetGrupoParams.safeParse(req.params);

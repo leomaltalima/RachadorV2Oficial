@@ -27,7 +27,7 @@ import { Input } from "@/components/ui/input"
 import { useToast } from "@/hooks/use-toast"
 import { formatCurrency, formatDate } from "@/lib/utils"
 
-import { ArrowLeft, Copy, Plus, Receipt, UserPlus, Trash2, CheckCircle2, ArrowRight, ImagePlus, X, Undo2, Camera, Pencil } from "lucide-react"
+import { ArrowLeft, Copy, Plus, Receipt, UserPlus, Trash2, CheckCircle2, ArrowRight, ImagePlus, X, Undo2, Camera, Pencil, UserMinus, Settings } from "lucide-react"
 
 // Extended tipo para incluir os campos novos que o servidor retorna
 type GrupoExtended = {
@@ -75,6 +75,12 @@ export default function GroupDashboard() {
   const [payComprovante, setPayComprovante] = useState<string | null>(null)
   const [updatingGroupImage, setUpdatingGroupImage] = useState(false)
   const [updatingProfileImage, setUpdatingProfileImage] = useState(false)
+
+  // Creator controls state
+  const [isRenameOpen, setIsRenameOpen] = useState(false)
+  const [renameValue, setRenameValue] = useState("")
+  const [renaming, setRenaming] = useState(false)
+  const [removingParticipantId, setRemovingParticipantId] = useState<number | null>(null)
 
   const { data: grupoRaw, isLoading: loadingGrupo } = useGetGrupo(grupoId, {
     query: { enabled: !!grupoId }
@@ -210,6 +216,56 @@ export default function GroupDashboard() {
     }
   }
 
+  // Renomear grupo
+  const handleRenameOpen = () => {
+    setRenameValue(grupo?.nome ?? "")
+    setIsRenameOpen(true)
+  }
+
+  const handleRename = async () => {
+    if (!renameValue.trim()) return
+    setRenaming(true)
+    try {
+      const res = await fetch(`/api/grupos/${grupoId}/nome`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nome: renameValue.trim() }),
+      })
+      if (!res.ok) throw new Error()
+      queryClient.invalidateQueries({ queryKey: getGetGrupoQueryKey(grupoId) })
+      toast({ title: "Grupo renomeado!" })
+      setIsRenameOpen(false)
+    } catch {
+      toast({ title: "Erro ao renomear o grupo", variant: "destructive" })
+    } finally {
+      setRenaming(false)
+    }
+  }
+
+  // Remover participante (com confirmação em dois cliques)
+  const handleRemoveParticipant = async (participanteId: number, nome: string) => {
+    if (removingParticipantId === participanteId) {
+      // Segundo clique — confirmar
+      try {
+        const res = await fetch(`/api/grupos/${grupoId}/participantes/${participanteId}`, {
+          method: "DELETE",
+          credentials: "include",
+        })
+        if (!res.ok) throw new Error()
+        queryClient.invalidateQueries({ queryKey: getGetGrupoQueryKey(grupoId) })
+        queryClient.invalidateQueries({ queryKey: getGetSaldoQueryKey(grupoId) })
+        toast({ title: `${nome} foi removido do grupo` })
+      } catch {
+        toast({ title: "Erro ao remover participante", variant: "destructive" })
+      } finally {
+        setRemovingParticipantId(null)
+      }
+    } else {
+      setRemovingParticipantId(participanteId)
+    }
+  }
+
   const getParticipantName = (id: number) => grupo?.participantes.find(p => p.id === id)?.nome || "Alguém"
   const getParticipantPix = (id: number) => grupo?.participantes.find(p => p.id === id)?.chavePix
 
@@ -232,7 +288,9 @@ export default function GroupDashboard() {
                 onClick={() => isCreator && groupImageInputRef.current?.click()}
                 title={isCreator ? "Alterar imagem do grupo" : undefined}
               >
-                {grupo.imagem ? (
+                {updatingGroupImage ? (
+                  <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                ) : grupo.imagem ? (
                   <img src={grupo.imagem} alt={grupo.nome} className="w-full h-full object-cover" />
                 ) : (
                   <span className="text-primary font-extrabold text-sm">{grupo.nome.charAt(0).toUpperCase()}</span>
@@ -250,7 +308,18 @@ export default function GroupDashboard() {
             </div>
 
             <div className="min-w-0">
-              <h1 className="text-xl font-bold truncate leading-tight">{grupo.nome}</h1>
+              <div className="flex items-center gap-1.5">
+                <h1 className="text-xl font-bold truncate leading-tight">{grupo.nome}</h1>
+                {isCreator && (
+                  <button
+                    onClick={handleRenameOpen}
+                    className="shrink-0 text-muted-foreground hover:text-primary transition-colors"
+                    title="Renomear grupo"
+                  >
+                    <Pencil className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
               <div className="flex items-center gap-2 text-sm text-muted-foreground mt-0.5">
                 <span>Código: <span className="font-mono font-medium text-foreground">{grupo.codigoConvite}</span></span>
                 <button onClick={handleCopyInvite} className="hover:text-primary transition-colors">
@@ -408,7 +477,14 @@ export default function GroupDashboard() {
             {/* Membros */}
             <div className="pt-4 border-t border-border/50">
               <div className="flex items-center justify-between px-1 mb-4">
-                <h2 className="text-lg font-bold">Membros ({grupo.participantes.length})</h2>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-lg font-bold">Membros ({grupo.participantes.length})</h2>
+                  {isCreator && (
+                    <span className="flex items-center gap-1 text-xs text-primary bg-primary/10 px-2 py-0.5 rounded-full font-medium">
+                      <Settings className="w-3 h-3" /> Admin
+                    </span>
+                  )}
+                </div>
                 <Dialog open={isAddParticipantOpen} onOpenChange={setIsAddParticipantOpen}>
                   <DialogTrigger asChild>
                     <Button variant="ghost" size="sm" className="text-primary hover:text-primary/80">
@@ -437,6 +513,7 @@ export default function GroupDashboard() {
               <div className="bg-card border rounded-2xl overflow-hidden shadow-sm divide-y">
                 {saldo?.participantes.map(p => {
                   const partInfo = grupo.participantes.find(x => x.id === p.participanteId)
+                  const isConfirmingRemove = removingParticipantId === p.participanteId
                   return (
                     <div key={p.participanteId} className="flex items-center justify-between p-4">
                       <div className="flex items-center gap-3">
@@ -450,8 +527,24 @@ export default function GroupDashboard() {
                           )}
                         </div>
                       </div>
-                      <div className={`text-sm font-bold ${p.saldoLiquido > 0 ? 'text-green-600' : p.saldoLiquido < 0 ? 'text-destructive' : 'text-muted-foreground'}`}>
-                        {p.saldoLiquido > 0 ? '+' : ''}{formatCurrency(p.saldoLiquido)}
+                      <div className="flex items-center gap-3">
+                        <div className={`text-sm font-bold ${p.saldoLiquido > 0 ? 'text-green-600' : p.saldoLiquido < 0 ? 'text-destructive' : 'text-muted-foreground'}`}>
+                          {p.saldoLiquido > 0 ? '+' : ''}{formatCurrency(p.saldoLiquido)}
+                        </div>
+                        {isCreator && (
+                          <button
+                            onClick={() => handleRemoveParticipant(p.participanteId, p.nome)}
+                            title={isConfirmingRemove ? "Confirmar remoção" : "Remover do grupo"}
+                            className={`flex items-center gap-1 text-xs px-2 py-1 rounded-lg border transition-all font-medium ${
+                              isConfirmingRemove
+                                ? "border-destructive bg-destructive text-destructive-foreground"
+                                : "border-border/60 text-muted-foreground hover:border-destructive/50 hover:text-destructive hover:bg-destructive/5"
+                            }`}
+                          >
+                            <UserMinus className="w-3.5 h-3.5" />
+                            <span>{isConfirmingRemove ? "Confirmar" : "Tirar"}</span>
+                          </button>
+                        )}
                       </div>
                     </div>
                   )
@@ -520,6 +613,32 @@ export default function GroupDashboard() {
           </Button>
         </div>
       </div>
+
+      {/* Dialog Renomear Grupo */}
+      <Dialog open={isRenameOpen} onOpenChange={setIsRenameOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Renomear grupo</DialogTitle>
+            <DialogDescription>Escolha um novo nome para o grupo.</DialogDescription>
+          </DialogHeader>
+          <div className="py-2">
+            <Input
+              value={renameValue}
+              onChange={e => setRenameValue(e.target.value)}
+              placeholder="Nome do grupo"
+              className="h-12 text-base"
+              onKeyDown={e => e.key === "Enter" && handleRename()}
+              autoFocus
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsRenameOpen(false)}>Cancelar</Button>
+            <Button onClick={handleRename} disabled={!renameValue.trim() || renaming}>
+              {renaming ? "Salvando..." : "Salvar"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Dialog Confirmar Pagamento */}
       <Dialog open={isPayOpen} onOpenChange={(open) => { setIsPayOpen(open); if (!open) setPayComprovante(null) }}>
