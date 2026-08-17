@@ -8,6 +8,7 @@ export const participantesTable = pgTable("participantes", {
   nome: text("nome").notNull(),
   chavePix: text("chave_pix"),
   grupoId: integer("grupo_id").notNull().references(() => gruposTable.id, { onDelete: "cascade" }),
+  clerkUserId: text("clerk_user_id"),
   criadoEm: timestamp("criado_em", { withTimezone: true }).notNull().defaultNow(),
 });
 

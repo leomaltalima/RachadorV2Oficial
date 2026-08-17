@@ -2,6 +2,7 @@ import { useState } from "react"
 import { useLocation, useParams } from "wouter"
 import { useGetGrupo, useAddParticipante, getGetGrupoQueryKey } from "@workspace/api-client-react"
 import { useQueryClient } from "@tanstack/react-query"
+import { useAuth } from "@clerk/react"
 import { useToast } from "@/hooks/use-toast"
 import { setSession } from "@/lib/session"
 
@@ -9,7 +10,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent } from "@/components/ui/card"
-import { Check, UserPlus, ChevronRight } from "lucide-react"
+import { ChevronRight, UserPlus } from "lucide-react"
 
 export default function JoinGroup() {
   const { grupoId: idStr } = useParams()
@@ -17,6 +18,7 @@ export default function JoinGroup() {
   const [, setLocation] = useLocation()
   const { toast } = useToast()
   const queryClient = useQueryClient()
+  const { isSignedIn } = useAuth()
 
   const { data: grupo, isLoading } = useGetGrupo(grupoId, {
     query: { enabled: !!grupoId }
@@ -27,8 +29,22 @@ export default function JoinGroup() {
   const [newNome, setNewNome] = useState("")
   const [newPix, setNewPix] = useState("")
 
-  const handleSelect = (participanteId: number) => {
+  // Claims a participant for the current Clerk user (server-side link)
+  const claimParticipant = async (participanteId: number) => {
+    if (!isSignedIn) return
+    try {
+      await fetch(`/api/participantes/${participanteId}/claim`, {
+        method: "POST",
+        credentials: "include",
+      })
+    } catch {
+      // non-critical: session still works via localStorage
+    }
+  }
+
+  const handleSelect = async (participanteId: number) => {
     setSession(grupoId, participanteId)
+    await claimParticipant(participanteId)
     setLocation(`/g/${grupoId}`)
   }
 
@@ -38,9 +54,10 @@ export default function JoinGroup() {
       grupoId,
       data: { nome: newNome.trim(), chavePix: newPix.trim() }
     }, {
-      onSuccess: (participante) => {
+      onSuccess: async (participante) => {
         queryClient.invalidateQueries({ queryKey: getGetGrupoQueryKey(grupoId) })
         setSession(grupoId, participante.id)
+        await claimParticipant(participante.id)
         toast({ title: `Bem-vindo(a), ${participante.nome}!` })
         setLocation(`/g/${grupoId}`)
       },
@@ -66,7 +83,6 @@ export default function JoinGroup() {
     <div className="min-h-[100dvh] flex flex-col items-center justify-center p-6">
       <div className="w-full max-w-md space-y-8 animate-in fade-in zoom-in-95 duration-400">
 
-        {/* Header */}
         <div className="text-center space-y-1">
           <p className="text-sm font-semibold text-primary uppercase tracking-widest">Entrando no grupo</p>
           <h1 className="text-3xl font-extrabold tracking-tight text-foreground">{grupo.nome}</h1>

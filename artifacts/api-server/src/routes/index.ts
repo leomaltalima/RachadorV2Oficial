@@ -5,10 +5,12 @@ import participantesRouter from "./participantes";
 import despesasRouter from "./despesas";
 import saldoRouter from "./saldo";
 import pagamentosRouter from "./pagamentos";
+import meRouter from "./me";
 
 const router: IRouter = Router();
 
 router.use(healthRouter);
+router.use(meRouter);
 router.use(gruposRouter);
 router.use(participantesRouter);
 router.use(despesasRouter);

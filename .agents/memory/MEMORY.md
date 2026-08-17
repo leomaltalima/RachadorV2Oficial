@@ -1,0 +1,1 @@
+- [Clerk Auth integration](clerk-auth.md) — Replit-managed Clerk; clerkUserId on participantes links users to groups via /api/me/grupos.
