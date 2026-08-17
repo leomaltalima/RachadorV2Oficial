@@ -13,6 +13,7 @@ import {
 
 import Home from '@/pages/home';
 import CreateGroup from '@/pages/create-group';
+import JoinGroup from '@/pages/join-group';
 import GroupDashboard from '@/pages/group-dashboard';
 import AddExpense from '@/pages/add-expense';
 
@@ -31,6 +32,7 @@ function Router() {
       <Switch>
         <Route path="/" component={Home} />
         <Route path="/criar" component={CreateGroup} />
+        <Route path="/g/:grupoId/entrar" component={JoinGroup} />
         <Route path="/g/:grupoId" component={GroupDashboard} />
         <Route path="/g/:grupoId/nova-despesa" component={AddExpense} />
         <Route component={NotFound} />

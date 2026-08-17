@@ -50,7 +50,7 @@ export default function CreateGroup() {
       }
     }, {
       onSuccess: (grupo) => {
-        setLocation(`/g/${grupo.id}`)
+        setLocation(`/g/${grupo.id}/entrar`)
       }
     })
   }

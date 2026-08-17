@@ -1,4 +1,4 @@
-import { useState, useRef } from "react"
+import { useState, useRef, useEffect } from "react"
 import { useLocation, useParams } from "wouter"
 import { 
   useGetGrupo, 
@@ -15,6 +15,7 @@ import {
   getGetGrupoQueryKey
 } from "@workspace/api-client-react"
 import { useQueryClient } from "@tanstack/react-query"
+import { getSession, clearSession } from "@/lib/session"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -25,7 +26,7 @@ import { Input } from "@/components/ui/input"
 import { useToast } from "@/hooks/use-toast"
 import { formatCurrency, formatDate } from "@/lib/utils"
 
-import { ArrowLeft, Copy, Plus, Receipt, UserPlus, Trash2, CheckCircle2, ArrowRight, ImagePlus, X, Undo2 } from "lucide-react"
+import { ArrowLeft, Copy, Plus, Receipt, UserPlus, Trash2, CheckCircle2, ArrowRight, ImagePlus, X, Undo2, UserCircle2, RefreshCw } from "lucide-react"
 
 export default function GroupDashboard() {
   const { grupoId: idStr } = useParams()
@@ -34,6 +35,21 @@ export default function GroupDashboard() {
   const { toast } = useToast()
   const queryClient = useQueryClient()
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Session: who the current user is in this group
+  const [myParticipantId, setMyParticipantId] = useState<number | null>(() => getSession(grupoId))
+
+  // Redirect to identify screen if no session
+  useEffect(() => {
+    if (myParticipantId === null) {
+      setLocation(`/g/${grupoId}/entrar`)
+    }
+  }, [myParticipantId, grupoId, setLocation])
+
+  const handleSwitchUser = () => {
+    clearSession(grupoId)
+    setLocation(`/g/${grupoId}/entrar`)
+  }
 
   const [activeTab, setActiveTab] = useState("despesas")
   const [isAddParticipantOpen, setIsAddParticipantOpen] = useState(false)
@@ -162,20 +178,37 @@ export default function GroupDashboard() {
 
   return (
     <div className="min-h-[100dvh] flex flex-col bg-background max-w-3xl mx-auto w-full">
-      <header className="sticky top-0 z-10 bg-background/80 backdrop-blur-md border-b border-border/50 p-4 pt-6 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" className="shrink-0 -ml-2" onClick={() => setLocation("/")}>
-            <ArrowLeft className="w-5 h-5" />
-          </Button>
-          <div className="flex-1 min-w-0">
-            <h1 className="text-xl font-bold truncate leading-tight">{grupo.nome}</h1>
-            <div className="flex items-center gap-2 text-sm text-muted-foreground mt-0.5">
-              <span>Código: <span className="font-mono font-medium text-foreground">{grupo.codigoConvite}</span></span>
-              <button onClick={handleCopyInvite} className="hover:text-primary transition-colors">
-                <Copy className="w-3.5 h-3.5" />
-              </button>
+      <header className="sticky top-0 z-10 bg-background/80 backdrop-blur-md border-b border-border/50 p-4 pt-6">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <Button variant="ghost" size="icon" className="shrink-0 -ml-2" onClick={() => setLocation("/")}>
+              <ArrowLeft className="w-5 h-5" />
+            </Button>
+            <div className="min-w-0">
+              <h1 className="text-xl font-bold truncate leading-tight">{grupo.nome}</h1>
+              <div className="flex items-center gap-2 text-sm text-muted-foreground mt-0.5">
+                <span>Código: <span className="font-mono font-medium text-foreground">{grupo.codigoConvite}</span></span>
+                <button onClick={handleCopyInvite} className="hover:text-primary transition-colors">
+                  <Copy className="w-3.5 h-3.5" />
+                </button>
+              </div>
             </div>
           </div>
+
+          {/* Logged-in user chip */}
+          {myParticipantId && (
+            <button
+              onClick={handleSwitchUser}
+              className="shrink-0 flex items-center gap-1.5 bg-secondary hover:bg-secondary/80 transition-colors rounded-full pl-2 pr-3 py-1.5"
+              title="Trocar usuário"
+            >
+              <UserCircle2 className="w-4 h-4 text-primary" />
+              <span className="text-xs font-semibold text-foreground max-w-[80px] truncate">
+                {getParticipantName(myParticipantId)}
+              </span>
+              <RefreshCw className="w-3 h-3 text-muted-foreground" />
+            </button>
+          )}
         </div>
       </header>
 

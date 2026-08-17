@@ -16,9 +16,9 @@ export default function Home() {
     }
   })
 
-  // Whenever a group is found by code, we navigate.
+  // Whenever a group is found by code, go to identify screen.
   if (grupo) {
-    setLocation(`/g/${grupo.id}`)
+    setLocation(`/g/${grupo.id}/entrar`)
   }
 
   return (
