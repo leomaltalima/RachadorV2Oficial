@@ -6,6 +6,7 @@ import despesasRouter from "./despesas";
 import saldoRouter from "./saldo";
 import pagamentosRouter from "./pagamentos";
 import meRouter from "./me";
+import scanReceiptRouter from "./scanReceipt";
 
 const router: IRouter = Router();
 
@@ -16,5 +17,6 @@ router.use(participantesRouter);
 router.use(despesasRouter);
 router.use(saldoRouter);
 router.use(pagamentosRouter);
+router.use(scanReceiptRouter);
 
 export default router;
