@@ -1,0 +1,24 @@
+kind = "mobile"
+previewPath = "/mobile/"
+title = "Rachador Mobile"
+description = "A mobile companion app for Rachador, a group expense splitting tool. Lets users create or join groups via invite code, identify themselves, track shared expenses, view who owes what, and confirm payments — all from their phone."
+version = "1.0.0"
+id = "artifacts/rachador-mobile"
+router = "expo-domain"
+
+[[services]]
+name = "expo"
+ensurePreviewReachable = "/status"
+paths = [ "/mobile/" ]
+localPort = 24586
+
+[services.development]
+run = "pnpm --filter @workspace/rachador-mobile run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/rachador-mobile", "run", "build" ]
+run = [ "pnpm", "--filter", "@workspace/rachador-mobile", "run", "serve" ]
+
+[services.env]
+PORT = "24586"
+BASE_PATH = "/mobile/"
