@@ -12,5 +12,6 @@ export interface Pagamento {
   paraId: number;
   grupoId: number;
   valor: number;
+  comprovante: string | null;
   criadoEm: Date;
 }

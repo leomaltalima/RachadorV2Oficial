@@ -5,6 +5,7 @@ import {
   CreatePagamentoBody,
   CreatePagamentoParams,
   ListPagamentosParams,
+  DeletePagamentoParams,
 } from "@workspace/api-zod";
 
 const router: IRouter = Router();
@@ -26,6 +27,7 @@ router.get("/grupos/:grupoId/pagamentos", async (req, res): Promise<void> => {
     pagamentos.map((p) => ({
       ...p,
       valor: parseFloat(p.valor),
+      comprovante: p.comprovante ?? null,
     }))
   );
 });
@@ -75,13 +77,36 @@ router.post("/grupos/:grupoId/pagamentos", async (req, res): Promise<void> => {
       paraId: parsed.data.paraId,
       grupoId: params.data.grupoId,
       valor: String(parsed.data.valor),
+      comprovante: parsed.data.comprovante ?? null,
     })
     .returning();
 
   res.status(201).json({
     ...pag,
     valor: parseFloat(pag.valor),
+    comprovante: pag.comprovante ?? null,
   });
+});
+
+router.delete("/pagamentos/:id", async (req, res): Promise<void> => {
+  const params = DeletePagamentoParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+
+  const [existing] = await db
+    .select()
+    .from(pagamentosTable)
+    .where(eq(pagamentosTable.id, params.data.id));
+
+  if (!existing) {
+    res.status(404).json({ error: "Pagamento não encontrado" });
+    return;
+  }
+
+  await db.delete(pagamentosTable).where(eq(pagamentosTable.id, params.data.id));
+  res.status(204).send();
 });
 
 export default router;

@@ -1,4 +1,4 @@
-import { pgTable, serial, timestamp, integer, numeric } from "drizzle-orm/pg-core";
+import { pgTable, serial, timestamp, integer, numeric, text } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { gruposTable } from "./grupos";
@@ -10,6 +10,7 @@ export const pagamentosTable = pgTable("pagamentos", {
   paraId: integer("para_id").notNull().references(() => participantesTable.id),
   grupoId: integer("grupo_id").notNull().references(() => gruposTable.id, { onDelete: "cascade" }),
   valor: numeric("valor", { precision: 12, scale: 2 }).notNull(),
+  comprovante: text("comprovante"),
   criadoEm: timestamp("criado_em", { withTimezone: true }).notNull().defaultNow(),
 });
 

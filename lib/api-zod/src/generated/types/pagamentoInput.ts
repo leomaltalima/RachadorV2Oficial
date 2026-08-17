@@ -11,4 +11,5 @@ export interface PagamentoInput {
   paraId: number;
   /** @minimum 0.01 */
   valor: number;
+  comprovante?: string | null;
 }

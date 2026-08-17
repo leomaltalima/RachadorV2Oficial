@@ -238,12 +238,17 @@ export const ListPagamentosParams = zod.object({
   "grupoId": zod.coerce.number()
 })
 
+export const DeletePagamentoParams = zod.object({
+  "id": zod.coerce.number()
+})
+
 export const ListPagamentosResponseItem = zod.object({
   "id": zod.number(),
   "deId": zod.number(),
   "paraId": zod.number(),
   "grupoId": zod.number(),
   "valor": zod.number(),
+  "comprovante": zod.string().nullable(),
   "criadoEm": zod.coerce.date()
 })
 export const ListPagamentosResponse = zod.array(ListPagamentosResponseItem)
@@ -263,7 +268,8 @@ export const createPagamentoBodyValorMin = 0.01;
 export const CreatePagamentoBody = zod.object({
   "deId": zod.number(),
   "paraId": zod.number(),
-  "valor": zod.number().min(createPagamentoBodyValorMin)
+  "valor": zod.number().min(createPagamentoBodyValorMin),
+  "comprovante": zod.string().nullable().optional()
 })
 
 export const CreatePagamentoResponse = zod.object({
@@ -272,6 +278,7 @@ export const CreatePagamentoResponse = zod.object({
   "paraId": zod.number(),
   "grupoId": zod.number(),
   "valor": zod.number(),
+  "comprovante": zod.string().nullable(),
   "criadoEm": zod.coerce.date()
 })
 

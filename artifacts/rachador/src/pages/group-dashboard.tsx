@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react"
+import { useState, useRef } from "react"
 import { useLocation, useParams } from "wouter"
 import { 
   useGetGrupo, 
@@ -7,6 +7,7 @@ import {
   useListPagamentos,
   useDeleteDespesa,
   useCreatePagamento,
+  useDeletePagamento,
   useAddParticipante,
   getGetSaldoQueryKey,
   getListPagamentosQueryKey,
@@ -16,7 +17,7 @@ import {
 import { useQueryClient } from "@tanstack/react-query"
 
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
@@ -24,7 +25,7 @@ import { Input } from "@/components/ui/input"
 import { useToast } from "@/hooks/use-toast"
 import { formatCurrency, formatDate } from "@/lib/utils"
 
-import { ArrowLeft, Copy, Plus, Receipt, UserPlus, Trash2, CheckCircle2, ChevronRight, UserCircle2, ArrowRight } from "lucide-react"
+import { ArrowLeft, Copy, Plus, Receipt, UserPlus, Trash2, CheckCircle2, ArrowRight, ImagePlus, X, Undo2 } from "lucide-react"
 
 export default function GroupDashboard() {
   const { grupoId: idStr } = useParams()
@@ -32,6 +33,7 @@ export default function GroupDashboard() {
   const [, setLocation] = useLocation()
   const { toast } = useToast()
   const queryClient = useQueryClient()
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const [activeTab, setActiveTab] = useState("despesas")
   const [isAddParticipantOpen, setIsAddParticipantOpen] = useState(false)
@@ -42,6 +44,7 @@ export default function GroupDashboard() {
   const [payDeId, setPayDeId] = useState<number | null>(null)
   const [payParaId, setPayParaId] = useState<number | null>(null)
   const [payValor, setPayValor] = useState<number>(0)
+  const [payComprovante, setPayComprovante] = useState<string | null>(null)
 
   const { data: grupo, isLoading: loadingGrupo } = useGetGrupo(grupoId, {
     query: { enabled: !!grupoId }
@@ -61,24 +64,19 @@ export default function GroupDashboard() {
 
   const deleteDespesa = useDeleteDespesa()
   const createPagamento = useCreatePagamento()
+  const deletePagamento = useDeletePagamento()
   const addParticipante = useAddParticipante()
 
   const handleCopyInvite = () => {
     if (grupo?.codigoConvite) {
       navigator.clipboard.writeText(grupo.codigoConvite)
-      toast({
-        title: "Código copiado",
-        description: "Compartilhe com seus amigos para eles entrarem no grupo.",
-      })
+      toast({ title: "Código copiado", description: "Compartilhe com seus amigos para eles entrarem no grupo." })
     }
   }
 
   const handleCopyPix = (pix: string) => {
     navigator.clipboard.writeText(pix)
-    toast({
-      title: "Chave Pix copiada",
-      description: "Cole no seu aplicativo do banco.",
-    })
+    toast({ title: "Chave Pix copiada", description: "Cole no seu aplicativo do banco." })
   }
 
   const handleDeleteDespesa = (id: number) => {
@@ -109,14 +107,33 @@ export default function GroupDashboard() {
     })
   }
 
+  const handleComprovanteChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = (ev) => {
+      setPayComprovante(ev.target?.result as string)
+    }
+    reader.readAsDataURL(file)
+  }
+
+  const handleOpenPayDialog = (deId: number, paraId: number, valor: number) => {
+    setPayDeId(deId)
+    setPayParaId(paraId)
+    setPayValor(valor)
+    setPayComprovante(null)
+    setIsPayOpen(true)
+  }
+
   const handlePay = () => {
     if (payDeId && payParaId && payValor > 0) {
       createPagamento.mutate({
         grupoId,
-        data: { deId: payDeId, paraId: payParaId, valor: payValor }
+        data: { deId: payDeId, paraId: payParaId, valor: payValor, comprovante: payComprovante ?? null }
       }, {
         onSuccess: () => {
           setIsPayOpen(false)
+          setPayComprovante(null)
           queryClient.invalidateQueries({ queryKey: getGetSaldoQueryKey(grupoId) })
           queryClient.invalidateQueries({ queryKey: getListPagamentosQueryKey(grupoId) })
           toast({ title: "Pagamento registrado com sucesso!" })
@@ -125,13 +142,20 @@ export default function GroupDashboard() {
     }
   }
 
-  const getParticipantName = (id: number) => {
-    return grupo?.participantes.find(p => p.id === id)?.nome || "Alguém"
+  const handleUndoPagamento = (id: number) => {
+    if (confirm("Desfazer este pagamento? Ele voltará como pendente nos saldos.")) {
+      deletePagamento.mutate({ id }, {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: getListPagamentosQueryKey(grupoId) })
+          queryClient.invalidateQueries({ queryKey: getGetSaldoQueryKey(grupoId) })
+          toast({ title: "Pagamento desfeito", description: "O saldo foi revertido." })
+        }
+      })
+    }
   }
 
-  const getParticipantPix = (id: number) => {
-    return grupo?.participantes.find(p => p.id === id)?.chavePix
-  }
+  const getParticipantName = (id: number) => grupo?.participantes.find(p => p.id === id)?.nome || "Alguém"
+  const getParticipantPix = (id: number) => grupo?.participantes.find(p => p.id === id)?.chavePix
 
   if (loadingGrupo) return <div className="p-8 text-center text-muted-foreground">Carregando...</div>
   if (!grupo) return <div className="p-8 text-center text-destructive">Grupo não encontrado</div>
@@ -163,6 +187,7 @@ export default function GroupDashboard() {
             <TabsTrigger value="pagamentos">Histórico</TabsTrigger>
           </TabsList>
 
+          {/* ── DESPESAS ── */}
           <TabsContent value="despesas" className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
             <div className="flex items-center justify-between px-1">
               <h2 className="text-lg font-bold">Últimas despesas</h2>
@@ -211,9 +236,8 @@ export default function GroupDashboard() {
             )}
           </TabsContent>
 
+          {/* ── SALDO ── */}
           <TabsContent value="saldo" className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
-            
-            {/* Quem deve quem */}
             <div>
               <h2 className="text-lg font-bold px-1 mb-4">Como acertar as contas</h2>
               {loadingSaldo ? (
@@ -229,43 +253,26 @@ export default function GroupDashboard() {
               ) : (
                 <div className="space-y-3">
                   {saldo?.debitos.map((debito, i) => {
-                    const deNome = getParticipantName(debito.deId)
-                    const paraNome = getParticipantName(debito.paraId)
                     const pix = getParticipantPix(debito.paraId)
-
                     return (
                       <Card key={i} className="overflow-hidden border-border/60">
                         <div className="p-4 flex flex-col gap-3">
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2">
-                              <span className="font-bold text-foreground">{deNome}</span>
+                              <span className="font-bold text-foreground">{getParticipantName(debito.deId)}</span>
                               <ArrowRight className="w-4 h-4 text-muted-foreground" />
-                              <span className="font-bold text-foreground">{paraNome}</span>
+                              <span className="font-bold text-foreground">{getParticipantName(debito.paraId)}</span>
                             </div>
                             <span className="font-bold text-destructive">{formatCurrency(debito.valor)}</span>
                           </div>
-                          
                           <div className="flex items-center gap-2 pt-2 border-t border-border/50">
-                            <Button 
-                              size="sm" 
-                              variant="default"
-                              className="w-full text-xs font-bold"
-                              onClick={() => {
-                                setPayDeId(debito.deId)
-                                setPayParaId(debito.paraId)
-                                setPayValor(debito.valor)
-                                setIsPayOpen(true)
-                              }}
-                            >
+                            <Button size="sm" variant="default" className="w-full text-xs font-bold"
+                              onClick={() => handleOpenPayDialog(debito.deId, debito.paraId, debito.valor)}>
                               Marcar como pago
                             </Button>
                             {pix && (
-                              <Button 
-                                size="sm" 
-                                variant="outline"
-                                className="w-full text-xs gap-1.5"
-                                onClick={() => handleCopyPix(pix)}
-                              >
+                              <Button size="sm" variant="outline" className="w-full text-xs gap-1.5"
+                                onClick={() => handleCopyPix(pix)}>
                                 Copiar Pix <Copy className="w-3 h-3" />
                               </Button>
                             )}
@@ -278,7 +285,7 @@ export default function GroupDashboard() {
               )}
             </div>
 
-            {/* Balanço por pessoa */}
+            {/* Membros */}
             <div className="pt-4 border-t border-border/50">
               <div className="flex items-center justify-between px-1 mb-4">
                 <h2 className="text-lg font-bold">Membros ({grupo.participantes.length})</h2>
@@ -335,6 +342,7 @@ export default function GroupDashboard() {
             </div>
           </TabsContent>
 
+          {/* ── HISTÓRICO ── */}
           <TabsContent value="pagamentos" className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
             <h2 className="text-lg font-bold px-1">Histórico de acertos</h2>
             {loadingPagamentos ? (
@@ -346,17 +354,48 @@ export default function GroupDashboard() {
                 </CardContent>
               </Card>
             ) : (
-              <div className="space-y-2 mt-4">
+              <div className="space-y-3 mt-2">
                 {pagamentos?.map(pag => (
-                  <div key={pag.id} className="flex items-center justify-between p-3 border-b border-border/50 last:border-0">
-                    <div>
-                      <p className="text-sm font-medium">
-                        {getParticipantName(pag.deId)} pagou {getParticipantName(pag.paraId)}
-                      </p>
-                      <p className="text-xs text-muted-foreground">{formatDate(pag.criadoEm)}</p>
+                  <Card key={pag.id} className="overflow-hidden border-border/60">
+                    <div className="p-4 flex gap-3">
+                      {/* Comprovante thumbnail */}
+                      {pag.comprovante && (
+                        <Dialog>
+                          <DialogTrigger asChild>
+                            <button className="shrink-0 w-12 h-12 rounded-lg overflow-hidden border border-border/60 hover:opacity-80 transition-opacity">
+                              <img src={pag.comprovante} alt="Comprovante" className="w-full h-full object-cover" />
+                            </button>
+                          </DialogTrigger>
+                          <DialogContent className="max-w-sm">
+                            <DialogHeader>
+                              <DialogTitle>Comprovante</DialogTitle>
+                            </DialogHeader>
+                            <img src={pag.comprovante} alt="Comprovante" className="w-full rounded-xl" />
+                          </DialogContent>
+                        </Dialog>
+                      )}
+
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-foreground">
+                          {getParticipantName(pag.deId)} pagou {getParticipantName(pag.paraId)}
+                        </p>
+                        <p className="text-xs text-muted-foreground">{formatDate(pag.criadoEm)}</p>
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className="font-bold text-sm text-green-600 dark:text-green-500">{formatCurrency(pag.valor)}</span>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                          title="Desfazer pagamento"
+                          onClick={() => handleUndoPagamento(pag.id)}
+                        >
+                          <Undo2 className="w-3.5 h-3.5" />
+                        </Button>
+                      </div>
                     </div>
-                    <span className="font-bold text-sm text-green-600 dark:text-green-500">{formatCurrency(pag.valor)}</span>
-                  </div>
+                  </Card>
                 ))}
               </div>
             )}
@@ -364,21 +403,18 @@ export default function GroupDashboard() {
         </Tabs>
       </main>
 
-      {/* FAB para nova despesa */}
+      {/* FAB */}
       <div className="fixed bottom-6 left-0 right-0 px-4 flex justify-center z-20 pointer-events-none">
         <div className="max-w-3xl w-full flex justify-center sm:justify-end sm:pr-4">
-          <Button 
-            size="lg" 
-            className="rounded-full shadow-xl shadow-primary/25 pointer-events-auto gap-2 px-6 h-14"
-            onClick={() => setLocation(`/g/${grupo.id}/nova-despesa`)}
-          >
+          <Button size="lg" className="rounded-full shadow-xl shadow-primary/25 pointer-events-auto gap-2 px-6 h-14"
+            onClick={() => setLocation(`/g/${grupo.id}/nova-despesa`)}>
             <Plus className="w-5 h-5" /> Adicionar despesa
           </Button>
         </div>
       </div>
 
       {/* Dialog Confirmar Pagamento */}
-      <Dialog open={isPayOpen} onOpenChange={setIsPayOpen}>
+      <Dialog open={isPayOpen} onOpenChange={(open) => { setIsPayOpen(open); if (!open) setPayComprovante(null) }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Confirmar Pagamento</DialogTitle>
@@ -386,8 +422,10 @@ export default function GroupDashboard() {
               Marcar esta dívida como paga. Isso atualizará os saldos de ambos.
             </DialogDescription>
           </DialogHeader>
+
           {payDeId && payParaId && (
-            <div className="py-4 space-y-4">
+            <div className="py-2 space-y-5">
+              {/* Quem pagou quem */}
               <div className="flex items-center justify-center gap-4 text-lg">
                 <span className="font-bold">{getParticipantName(payDeId)}</span>
                 <ArrowRight className="w-5 h-5 text-muted-foreground" />
@@ -396,11 +434,46 @@ export default function GroupDashboard() {
               <div className="text-center">
                 <span className="text-3xl font-extrabold text-foreground">{formatCurrency(payValor)}</span>
               </div>
+
+              {/* Comprovante */}
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Comprovante <span className="text-muted-foreground font-normal">(opcional)</span></Label>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleComprovanteChange}
+                />
+                {payComprovante ? (
+                  <div className="relative w-full rounded-xl overflow-hidden border border-border/60">
+                    <img src={payComprovante} alt="Comprovante" className="w-full max-h-48 object-contain bg-secondary/30" />
+                    <button
+                      onClick={() => { setPayComprovante(null); if (fileInputRef.current) fileInputRef.current.value = "" }}
+                      className="absolute top-2 right-2 w-7 h-7 rounded-full bg-background/80 border border-border flex items-center justify-center hover:bg-destructive hover:text-destructive-foreground transition-colors"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="w-full h-24 rounded-xl border-2 border-dashed border-border/60 flex flex-col items-center justify-center gap-2 text-muted-foreground hover:border-primary/50 hover:text-primary transition-colors"
+                  >
+                    <ImagePlus className="w-6 h-6" />
+                    <span className="text-xs font-medium">Adicionar imagem do comprovante</span>
+                  </button>
+                )}
+              </div>
             </div>
           )}
+
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsPayOpen(false)}>Cancelar</Button>
-            <Button onClick={handlePay}>Confirmar pagamento</Button>
+            <Button onClick={handlePay} disabled={createPagamento.isPending}>
+              {createPagamento.isPending ? "Salvando..." : "Confirmar pagamento"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

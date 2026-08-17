@@ -107,6 +107,8 @@ export interface Pagamento {
   paraId: number;
   grupoId: number;
   valor: number;
+  /** @nullable */
+  comprovante: string | null;
   criadoEm: string;
 }
 
@@ -115,5 +117,7 @@ export interface PagamentoInput {
   paraId: number;
   /** @minimum 0.01 */
   valor: number;
+  /** @nullable */
+  comprovante?: string | null;
 }
 

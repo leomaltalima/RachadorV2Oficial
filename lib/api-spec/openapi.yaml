@@ -281,6 +281,27 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /pagamentos/{id}:
+    delete:
+      operationId: deletePagamento
+      tags: [pagamentos]
+      summary: Delete (undo) a payment
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: number
+      responses:
+        "204":
+          description: No content
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /grupos/{grupoId}/pagamentos:
     get:
       operationId: listPagamentos
@@ -573,6 +594,8 @@ components:
           type: number
         valor:
           type: number
+        comprovante:
+          type: ["string", "null"]
         criadoEm:
           type: string
           format: date-time
@@ -582,6 +605,7 @@ components:
         - paraId
         - grupoId
         - valor
+        - comprovante
         - criadoEm
 
     PagamentoInput:
@@ -594,6 +618,8 @@ components:
         valor:
           type: number
           minimum: 0.01
+        comprovante:
+          type: ["string", "null"]
       required:
         - deId
         - paraId
