@@ -298,12 +298,12 @@ export default function GroupDashboard() {
                         <Input value={newParticipantName} onChange={e => setNewParticipantName(e.target.value)} placeholder="Ex: João" />
                       </div>
                       <div className="space-y-2">
-                        <Label>Chave Pix (Opcional)</Label>
-                        <Input value={newParticipantPix} onChange={e => setNewParticipantPix(e.target.value)} placeholder="CPF, celular..." />
+                        <Label>Chave Pix</Label>
+                        <Input value={newParticipantPix} onChange={e => setNewParticipantPix(e.target.value)} placeholder="CPF, celular, e-mail..." />
                       </div>
                     </div>
                     <DialogFooter>
-                      <Button onClick={handleAddParticipant} disabled={!newParticipantName}>Adicionar</Button>
+                      <Button onClick={handleAddParticipant} disabled={!newParticipantName || !newParticipantPix}>Adicionar</Button>
                     </DialogFooter>
                   </DialogContent>
                 </Dialog>

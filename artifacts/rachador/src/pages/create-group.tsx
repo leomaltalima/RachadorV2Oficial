@@ -14,7 +14,7 @@ import { Plus, Trash2, ArrowLeft } from "lucide-react"
 
 const participantSchema = z.object({
   nome: z.string().min(1, "O nome é obrigatório"),
-  chavePix: z.string().optional(),
+  chavePix: z.string().min(1, "A chave Pix é obrigatória"),
 })
 
 const formSchema = z.object({
@@ -45,7 +45,7 @@ export default function CreateGroup() {
         nome: values.nome,
         participantes: values.participantes.map(p => ({
           nome: p.nome,
-          chavePix: p.chavePix || null,
+          chavePix: p.chavePix,
         }))
       }
     }, {
@@ -129,7 +129,7 @@ export default function CreateGroup() {
                         name={`participantes.${index}.chavePix`}
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Chave Pix <span className="text-muted-foreground font-normal">(Opcional)</span></FormLabel>
+                            <FormLabel>Chave Pix</FormLabel>
                             <FormControl>
                               <Input placeholder="CPF, Celular, E-mail..." {...field} />
                             </FormControl>
