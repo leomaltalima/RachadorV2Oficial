@@ -10,6 +10,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
 import { formatCurrency } from "@/lib/utils"
+import { getSession } from "@/lib/session"
 
 import { ArrowLeft, Calculator, Users, UserCheck, Check } from "lucide-react"
 
@@ -27,7 +28,10 @@ export default function AddExpense() {
 
   const [descricao, setDescricao] = useState("")
   const [valorStr, setValorStr] = useState("")
-  const [pagoPorId, setPagoPorId] = useState<string>("")
+  const [pagoPorId, setPagoPorId] = useState<string>(() => {
+    const sessionId = getSession(grupoId)
+    return sessionId !== null ? sessionId.toString() : ""
+  })
   const [splitMode, setSplitMode] = useState<SplitMode>("equal")
 
   // For "select" mode – who's splitting (all selected by default after group loads)
