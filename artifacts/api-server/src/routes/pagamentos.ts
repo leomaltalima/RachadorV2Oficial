@@ -7,6 +7,7 @@ import {
   ListPagamentosParams,
   DeletePagamentoParams,
 } from "@workspace/api-zod";
+import { notifyNovoPagamento } from "../lib/pushNotifications";
 
 const router: IRouter = Router();
 
@@ -86,6 +87,16 @@ router.post("/grupos/:grupoId/pagamentos", async (req, res): Promise<void> => {
     valor: parseFloat(pag.valor),
     comprovante: pag.comprovante ?? null,
   });
+
+  // Fire-and-forget push notification (after response is sent)
+  notifyNovoPagamento({
+    grupoId: params.data.grupoId,
+    valor: parsed.data.valor,
+    deNome: de.nome,
+    paraNome: para.nome,
+    deId: parsed.data.deId,
+    paraId: parsed.data.paraId,
+  }).catch(() => {});
 });
 
 router.delete("/pagamentos/:id", async (req, res): Promise<void> => {

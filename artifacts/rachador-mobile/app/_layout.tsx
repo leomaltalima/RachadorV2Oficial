@@ -17,6 +17,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { setBaseUrl } from '@workspace/api-client-react';
 import { SessionProvider } from '@/context/SessionContext';
 import { useColors } from '@/hooks/useColors';
+import { useNotificationNavigation } from '@/hooks/usePushNotifications';
 
 // Set the API base URL for all generated hooks.
 // EXPO_PUBLIC_DOMAIN is injected by the dev script as $REPLIT_DEV_DOMAIN.
@@ -28,6 +29,7 @@ const queryClient = new QueryClient();
 
 function RootLayoutNav() {
   const colors = useColors();
+  useNotificationNavigation();
   return (
     <Stack
       screenOptions={{

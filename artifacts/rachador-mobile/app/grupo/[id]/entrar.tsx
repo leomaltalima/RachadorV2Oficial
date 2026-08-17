@@ -21,6 +21,28 @@ import {
   useAddParticipante,
 } from '@workspace/api-client-react';
 import type { Participante } from '@workspace/api-client-react';
+import {
+  requestPushPermissionAndGetToken,
+  registerPushToken,
+} from '@/hooks/usePushNotifications';
+
+const API_BASE_URL = `https://${process.env.EXPO_PUBLIC_DOMAIN}`;
+
+async function setupPushNotifications(
+  grupoId: number,
+  participanteId: number,
+  codigoConvite: string,
+) {
+  if (Platform.OS === 'web') return;
+  try {
+    const token = await requestPushPermissionAndGetToken();
+    if (token) {
+      await registerPushToken(API_BASE_URL, participanteId, grupoId, codigoConvite, token);
+    }
+  } catch {
+    // Non-critical — ignore
+  }
+}
 
 export default function EntrarScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -38,6 +60,8 @@ export default function EntrarScreen() {
   const selectParticipante = async (p: Participante) => {
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     await setSession(grupoId, p.id);
+    // Request push permission after session is set (fire-and-forget)
+    setupPushNotifications(grupoId, p.id, grupo?.codigoConvite ?? '');
     router.replace(`/grupo/${grupoId}/despesas`);
   };
 
@@ -50,6 +74,8 @@ export default function EntrarScreen() {
         data: { nome: newNome.trim(), chavePix: newPix.trim() || null },
       });
       await setSession(grupoId, novo.id);
+      // Request push permission after session is set (fire-and-forget)
+      setupPushNotifications(grupoId, novo.id, grupo?.codigoConvite ?? '');
       router.replace(`/grupo/${grupoId}/despesas`);
     } catch {
       Alert.alert('Erro', 'Não foi possível entrar no grupo. Tente novamente.');
