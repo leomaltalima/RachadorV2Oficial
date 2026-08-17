@@ -41,6 +41,17 @@ router.post("/grupos", async (req, res): Promise<void> => {
   res.status(201).json({ ...grupo, participantes: parts });
 });
 
+function mapParticipants(
+  parts: { clerkUserId: string | null; [key: string]: unknown }[],
+  currentUserId: string | null | undefined,
+) {
+  return parts.map(({ clerkUserId, ...p }) => ({
+    ...p,
+    claimado: clerkUserId != null,
+    meu: currentUserId != null && clerkUserId === currentUserId,
+  }));
+}
+
 router.get("/grupos/by-code/:codigo", async (req, res): Promise<void> => {
   const params = GetGrupoByCodigoParams.safeParse(req.params);
   if (!params.success) {
@@ -63,13 +74,8 @@ router.get("/grupos/by-code/:codigo", async (req, res): Promise<void> => {
     .from(participantesTable)
     .where(eq(participantesTable.grupoId, grupo.id));
 
-  res.json({
-    ...grupo,
-    participantes: parts.map(({ clerkUserId, ...p }) => ({
-      ...p,
-      claimado: clerkUserId != null,
-    })),
-  });
+  const { userId } = getAuth(req);
+  res.json({ ...grupo, participantes: mapParticipants(parts, userId) });
 });
 
 router.get("/grupos/:grupoId", async (req, res): Promise<void> => {
@@ -94,13 +100,8 @@ router.get("/grupos/:grupoId", async (req, res): Promise<void> => {
     .from(participantesTable)
     .where(eq(participantesTable.grupoId, grupo.id));
 
-  res.json({
-    ...grupo,
-    participantes: parts.map(({ clerkUserId, ...p }) => ({
-      ...p,
-      claimado: clerkUserId != null,
-    })),
-  });
+  const { userId } = getAuth(req);
+  res.json({ ...grupo, participantes: mapParticipants(parts, userId) });
 });
 
 // Update group image — only the creator can do this

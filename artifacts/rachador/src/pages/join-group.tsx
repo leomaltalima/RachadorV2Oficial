@@ -93,42 +93,56 @@ export default function JoinGroup() {
           <div className="space-y-4">
             {grupo.participantes.length > 0 ? (
               <div className="space-y-2">
-                {(grupo.participantes as (typeof grupo.participantes[0] & { claimado?: boolean })[]).map(p => {
-                  const claimed = !!p.claimado
-                  return claimed ? (
-                    <div
-                      key={p.id}
-                      className="w-full flex items-center justify-between p-4 rounded-2xl border-2 border-border/30 bg-muted/40 opacity-60 cursor-not-allowed select-none"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center shrink-0 font-bold text-muted-foreground">
-                          {p.nome.charAt(0).toUpperCase()}
+                {(grupo.participantes as (typeof grupo.participantes[0] & { claimado?: boolean; meu?: boolean })[]).map(p => {
+                  const isMe = !!p.meu
+                  const lockedByOther = !!p.claimado && !isMe
+
+                  if (lockedByOther) {
+                    return (
+                      <div
+                        key={p.id}
+                        className="w-full flex items-center justify-between p-4 rounded-2xl border-2 border-border/30 bg-muted/40 opacity-60 cursor-not-allowed select-none"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center shrink-0 font-bold text-muted-foreground">
+                            {p.nome.charAt(0).toUpperCase()}
+                          </div>
+                          <div>
+                            <p className="font-bold text-foreground">{p.nome}</p>
+                            <p className="text-xs text-muted-foreground">Já vinculado a uma conta</p>
+                          </div>
                         </div>
-                        <div>
-                          <p className="font-bold text-foreground">{p.nome}</p>
-                          <p className="text-xs text-muted-foreground">Já vinculado a uma conta</p>
-                        </div>
+                        <Lock className="w-4 h-4 text-muted-foreground" />
                       </div>
-                      <Lock className="w-4 h-4 text-muted-foreground" />
-                    </div>
-                  ) : (
+                    )
+                  }
+
+                  return (
                     <button
                       key={p.id}
                       onClick={() => handleSelect(p.id)}
-                      className="w-full flex items-center justify-between p-4 rounded-2xl border-2 border-border/60 bg-card hover:border-primary/60 hover:bg-primary/5 transition-all text-left group"
+                      className={`w-full flex items-center justify-between p-4 rounded-2xl border-2 transition-all text-left group ${
+                        isMe
+                          ? "border-primary/60 bg-primary/5 hover:border-primary hover:bg-primary/10"
+                          : "border-border/60 bg-card hover:border-primary/60 hover:bg-primary/5"
+                      }`}
                     >
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center shrink-0 font-bold text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary transition-colors">
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 font-bold transition-colors ${
+                          isMe
+                            ? "bg-primary/20 text-primary group-hover:bg-primary/30"
+                            : "bg-secondary text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary"
+                        }`}>
                           {p.nome.charAt(0).toUpperCase()}
                         </div>
                         <div>
                           <p className="font-bold text-foreground">{p.nome}</p>
-                          {p.chavePix && (
-                            <p className="text-xs text-muted-foreground truncate max-w-[200px]">Pix: {p.chavePix}</p>
-                          )}
+                          <p className="text-xs text-muted-foreground truncate max-w-[200px]">
+                            {isMe ? "Sua conta — clique para entrar" : p.chavePix ? `Pix: ${p.chavePix}` : ""}
+                          </p>
                         </div>
                       </div>
-                      <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
+                      <ChevronRight className={`w-4 h-4 transition-colors ${isMe ? "text-primary" : "text-muted-foreground group-hover:text-primary"}`} />
                     </button>
                   )
                 })}
