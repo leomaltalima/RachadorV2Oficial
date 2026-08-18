@@ -36,7 +36,7 @@ type GrupoExtended = {
   codigoConvite: string
   imagem?: string | null
   criadorClerkUserId?: string | null
-  participantes: { id: number; nome: string; chavePix: string | null }[]
+  participantes: { id: number; nome: string; chavePix: string | null; imagem?: string | null }[]
 }
 
 export default function GroupDashboard() {
@@ -50,6 +50,7 @@ export default function GroupDashboard() {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const groupImageInputRef = useRef<HTMLInputElement>(null)
   const profileImageInputRef = useRef<HTMLInputElement>(null)
+  const participantImageInputRef = useRef<HTMLInputElement>(null)
 
   const [myParticipantId, setMyParticipantId] = useState<number | null>(() => getSession(grupoId))
 
@@ -75,6 +76,7 @@ export default function GroupDashboard() {
   const [payComprovante, setPayComprovante] = useState<string | null>(null)
   const [updatingGroupImage, setUpdatingGroupImage] = useState(false)
   const [updatingProfileImage, setUpdatingProfileImage] = useState(false)
+  const [updatingParticipantImage, setUpdatingParticipantImage] = useState(false)
 
   // Creator controls state
   const [isRenameOpen, setIsRenameOpen] = useState(false)
@@ -214,6 +216,33 @@ export default function GroupDashboard() {
       setUpdatingProfileImage(false)
       if (profileImageInputRef.current) profileImageInputRef.current.value = ""
     }
+  }
+
+  // Atualiza a imagem do participante (o próprio usuário)
+  const handleParticipantImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file || !myParticipantId) return
+    setUpdatingParticipantImage(true)
+    const reader = new FileReader()
+    reader.onload = async (ev) => {
+      const base64 = ev.target?.result as string
+      try {
+        const res = await fetch(`/api/participantes/${myParticipantId}/imagem`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ imagem: base64 }),
+        })
+        if (!res.ok) throw new Error()
+        queryClient.invalidateQueries({ queryKey: getGetGrupoQueryKey(grupoId) })
+        toast({ title: "Foto atualizada!" })
+      } catch {
+        toast({ title: "Erro ao atualizar foto", variant: "destructive" })
+      } finally {
+        setUpdatingParticipantImage(false)
+        if (participantImageInputRef.current) participantImageInputRef.current.value = ""
+      }
+    }
+    reader.readAsDataURL(file)
   }
 
   // Renomear grupo
@@ -510,18 +539,47 @@ export default function GroupDashboard() {
                 </Dialog>
               </div>
 
+              {/* Hidden file input for participant image */}
+              <input
+                ref={participantImageInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleParticipantImageChange}
+              />
+
               <div className="bg-card border rounded-2xl overflow-hidden shadow-sm divide-y">
                 {saldo?.participantes.map(p => {
                   const partInfo = grupo.participantes.find(x => x.id === p.participanteId)
+                  const isMe = p.participanteId === myParticipantId
                   const isConfirmingRemove = removingParticipantId === p.participanteId
                   return (
-                    <div key={p.participanteId} className="flex items-center justify-between p-4">
+                    <div key={p.participanteId} className={`flex items-center justify-between p-4 transition-colors ${isMe ? "bg-primary/5" : ""}`}>
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center">
-                          <span className="text-sm font-bold text-muted-foreground">{p.nome.charAt(0).toUpperCase()}</span>
+                        {/* Avatar do participante — clicável apenas para o próprio */}
+                        <div
+                          className={`relative w-10 h-10 rounded-full overflow-hidden bg-secondary flex items-center justify-center shrink-0 group/avatar ${isMe ? "cursor-pointer ring-2 ring-primary ring-offset-1" : ""}`}
+                          onClick={() => isMe && participantImageInputRef.current?.click()}
+                          title={isMe ? "Alterar sua foto" : undefined}
+                        >
+                          {updatingParticipantImage && isMe ? (
+                            <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                          ) : partInfo?.imagem ? (
+                            <img src={partInfo.imagem} alt={p.nome} className="w-full h-full object-cover" />
+                          ) : (
+                            <span className="text-sm font-bold text-muted-foreground">{p.nome.charAt(0).toUpperCase()}</span>
+                          )}
+                          {isMe && !updatingParticipantImage && (
+                            <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover/avatar:opacity-100 transition-opacity">
+                              <Camera className="w-3.5 h-3.5 text-white" />
+                            </div>
+                          )}
                         </div>
                         <div>
-                          <p className="font-bold text-sm text-foreground">{p.nome}</p>
+                          <div className="flex items-center gap-1.5">
+                            <p className="font-bold text-sm text-foreground">{p.nome}</p>
+                            {isMe && <span className="text-xs text-primary font-semibold bg-primary/10 px-1.5 py-0.5 rounded-full">Você</span>}
+                          </div>
                           {partInfo?.chavePix && (
                             <p className="text-xs text-muted-foreground truncate max-w-[120px]">Pix: {partInfo.chavePix}</p>
                           )}

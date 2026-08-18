@@ -45,6 +45,30 @@ router.post("/grupos/:grupoId/participantes", async (req, res): Promise<void> =>
   res.status(201).json(part);
 });
 
+// Update participant profile image
+router.patch("/participantes/:id/imagem", async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (isNaN(id)) {
+    res.status(400).json({ error: "ID inválido" });
+    return;
+  }
+
+  const { imagem } = req.body as { imagem: string | null };
+
+  const [part] = await db
+    .update(participantesTable)
+    .set({ imagem: imagem ?? null })
+    .where(eq(participantesTable.id, id))
+    .returning();
+
+  if (!part) {
+    res.status(404).json({ error: "Participante não encontrado" });
+    return;
+  }
+
+  res.json(part);
+});
+
 router.patch("/participantes/:id", async (req, res): Promise<void> => {
   const params = UpdateParticipanteParams.safeParse(req.params);
   if (!params.success) {
