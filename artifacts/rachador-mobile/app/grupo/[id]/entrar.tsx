@@ -19,6 +19,7 @@ import { useSession } from '@/context/SessionContext';
 import {
   useGetGrupo,
   useAddParticipante,
+  useUpdateParticipante,
 } from '@workspace/api-client-react';
 import type { Participante } from '@workspace/api-client-react';
 import {
@@ -54,10 +55,15 @@ export default function EntrarScreen() {
   const { getSession, setSession, sessionsLoaded } = useSession();
   const { data: grupo, isLoading, isError } = useGetGrupo(grupoId);
   const addParticipante = useAddParticipante();
+  const updateParticipante = useUpdateParticipante();
 
   const [showNewForm, setShowNewForm] = useState(false);
   const [newNome, setNewNome] = useState('');
   const [newPix, setNewPix] = useState('');
+
+  // Confirm-pix step for existing participants
+  const [confirmParticipante, setConfirmParticipante] = useState<ParticipanteExtended | null>(null);
+  const [confirmPix, setConfirmPix] = useState('');
 
   // If already has a session for this group, skip straight in
   useEffect(() => {
@@ -70,9 +76,25 @@ export default function EntrarScreen() {
 
   const selectParticipante = async (p: ParticipanteExtended) => {
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    await setSession(grupoId, p.id);
-    // Request push permission after session is set (fire-and-forget)
-    setupPushNotifications(grupoId, p.id, grupo?.codigoConvite ?? '');
+    // Show the Pix confirmation step
+    setConfirmParticipante(p);
+    setConfirmPix(p.chavePix ?? '');
+  };
+
+  const handleConfirmEntry = async () => {
+    if (!confirmParticipante) return;
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    try {
+      // Save Pix key if provided (or clear it)
+      await updateParticipante.mutateAsync({
+        id: confirmParticipante.id,
+        data: { chavePix: confirmPix.trim() || null },
+      });
+    } catch {
+      // Non-critical — still allow entry
+    }
+    await setSession(grupoId, confirmParticipante.id);
+    setupPushNotifications(grupoId, confirmParticipante.id, grupo?.codigoConvite ?? '');
     router.replace(`/grupo/${grupoId}/despesas`);
   };
 
@@ -206,8 +228,77 @@ export default function EntrarScreen() {
         })}
       </View>
 
-      {/* Not in the list */}
-      {!showNewForm ? (
+      {/* Pix confirmation step for existing participant */}
+      {confirmParticipante && (
+        <View style={[styles.newForm, { backgroundColor: colors.card, borderColor: colors.primary + '44' }]}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            <View style={[styles.participanteAvatar, { backgroundColor: colors.primary + '22' }]}>
+              <Text style={[styles.participanteAvatarText, { color: colors.primary }]}>
+                {confirmParticipante.nome.charAt(0).toUpperCase()}
+              </Text>
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.newFormTitle, { color: colors.foreground }]}>
+                Entrar como {confirmParticipante.nome}
+              </Text>
+              <Text style={[styles.participantePix, { color: colors.mutedForeground }]}>
+                Confirme sua chave Pix para receber reembolsos
+              </Text>
+            </View>
+          </View>
+          <TextInput
+            style={[
+              styles.input,
+              {
+                backgroundColor: colors.input,
+                borderColor: confirmPix ? colors.primary : colors.border,
+                color: colors.foreground,
+              },
+            ]}
+            value={confirmPix}
+            onChangeText={setConfirmPix}
+            placeholder="Chave Pix (CPF, celular, e-mail…)"
+            placeholderTextColor={colors.mutedForeground}
+            autoFocus
+            autoCapitalize="none"
+            keyboardType="email-address"
+            returnKeyType="done"
+            onSubmitEditing={handleConfirmEntry}
+          />
+          <View style={styles.newFormActions}>
+            <Pressable
+              style={({ pressed }) => [
+                styles.cancelButton,
+                { borderColor: colors.border, opacity: pressed ? 0.7 : 1 },
+              ]}
+              onPress={() => setConfirmParticipante(null)}
+            >
+              <Text style={[styles.cancelButtonText, { color: colors.mutedForeground }]}>Voltar</Text>
+            </Pressable>
+            <Pressable
+              style={({ pressed }) => [
+                styles.confirmButton,
+                {
+                  backgroundColor: colors.primary,
+                  opacity: updateParticipante.isPending ? 0.45 : pressed ? 0.85 : 1,
+                  flex: 1,
+                },
+              ]}
+              onPress={handleConfirmEntry}
+              disabled={updateParticipante.isPending}
+            >
+              {updateParticipante.isPending ? (
+                <ActivityIndicator color={colors.primaryForeground} />
+              ) : (
+                <Text style={[styles.confirmButtonText, { color: colors.primaryForeground }]}>Entrar no grupo</Text>
+              )}
+            </Pressable>
+          </View>
+        </View>
+      )}
+
+      {/* Not in the list — button */}
+      {!confirmParticipante && !showNewForm && (
         <Pressable
           style={({ pressed }) => [
             styles.notListedButton,
@@ -220,7 +311,10 @@ export default function EntrarScreen() {
             Não estou na lista
           </Text>
         </Pressable>
-      ) : (
+      )}
+
+      {/* New participant form */}
+      {!confirmParticipante && showNewForm && (
         <View style={[styles.newForm, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <Text style={[styles.newFormTitle, { color: colors.foreground }]}>Entrar como novo participante</Text>
           <TextInput
