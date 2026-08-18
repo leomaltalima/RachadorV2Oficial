@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -16,6 +16,14 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useColors } from '@/hooks/useColors';
 import { useCreateGrupo } from '@workspace/api-client-react';
+import { useQuery } from '@tanstack/react-query';
+import { useAuth } from '@clerk/expo';
+import { useSession } from '@/context/SessionContext';
+
+interface MeuGrupo {
+  grupo: { id: number; nome: string; participantes: { id: number; nome: string; chavePix: string | null }[] };
+  participante: { id: number; nome: string };
+}
 
 interface ParticipanteForm {
   id: string;
@@ -31,6 +39,27 @@ export default function CriarGrupoScreen() {
     { id: '1', nome: '', pix: '' },
   ]);
   const createGrupo = useCreateGrupo();
+  const { getToken, isSignedIn } = useAuth();
+  const { setSession } = useSession();
+
+  const { data: meusGrupos, isLoading: loadingGrupos } = useQuery<MeuGrupo[]>({
+    queryKey: ['me/grupos'],
+    queryFn: async () => {
+      const token = await getToken();
+      const res = await fetch(`https://${process.env.EXPO_PUBLIC_DOMAIN}/api/me/grupos`, {
+        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      });
+      if (!res.ok) throw new Error('Erro ao buscar grupos');
+      return res.json();
+    },
+    enabled: !!isSignedIn,
+  });
+
+  const handleEnterGroup = async (g: MeuGrupo) => {
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    await setSession(g.grupo.id, g.participante.id);
+    router.replace(`/grupo/${g.grupo.id}/despesas`);
+  };
 
   const addParticipante = () => {
     setParticipantes((prev) => [
@@ -85,6 +114,47 @@ export default function CriarGrupoScreen() {
       ]}
       keyboardShouldPersistTaps="handled"
     >
+      {/* Existing groups */}
+      {(loadingGrupos || (meusGrupos && meusGrupos.length > 0)) && (
+        <View style={styles.section}>
+          <Text style={[styles.label, { color: colors.mutedForeground }]}>SEUS GRUPOS</Text>
+          {loadingGrupos ? (
+            <ActivityIndicator size="small" color={colors.primary} />
+          ) : (
+            <>
+              {meusGrupos!.map((g) => (
+                <Pressable
+                  key={g.grupo.id}
+                  style={({ pressed }) => [
+                    styles.grupoItem,
+                    { backgroundColor: colors.card, borderColor: colors.border, opacity: pressed ? 0.75 : 1 },
+                  ]}
+                  onPress={() => handleEnterGroup(g)}
+                >
+                  <View style={[styles.grupoIcon, { backgroundColor: colors.primary + '18' }]}>
+                    <Ionicons name="people-outline" size={18} color={colors.primary} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.grupoName, { color: colors.foreground }]} numberOfLines={1}>
+                      {g.grupo.nome}
+                    </Text>
+                    <Text style={[styles.grupoMeta, { color: colors.mutedForeground }]}>
+                      Como {g.participante.nome} · {g.grupo.participantes.length} membros
+                    </Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={16} color={colors.mutedForeground} />
+                </Pressable>
+              ))}
+              <View style={styles.dividerRow}>
+                <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
+                <Text style={[styles.dividerText, { color: colors.mutedForeground }]}>ou crie um novo</Text>
+                <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
+              </View>
+            </>
+          )}
+        </View>
+      )}
+
       {/* Group name */}
       <View style={styles.section}>
         <Text style={[styles.label, { color: colors.mutedForeground }]}>NOME DO GRUPO</Text>
@@ -241,6 +311,46 @@ const styles = StyleSheet.create({
   },
   removeButton: {
     padding: 2,
+  },
+  grupoItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1.5,
+  },
+  grupoIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  grupoName: {
+    fontFamily: 'PlusJakartaSans_700Bold',
+    fontSize: 14,
+  },
+  grupoMeta: {
+    fontFamily: 'PlusJakartaSans_400Regular',
+    fontSize: 12,
+    marginTop: 1,
+  },
+  dividerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 4,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+  },
+  dividerText: {
+    fontFamily: 'PlusJakartaSans_600SemiBold',
+    fontSize: 11,
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
   },
   addButton: {
     flexDirection: 'row',

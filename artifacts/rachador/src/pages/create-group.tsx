@@ -4,13 +4,19 @@ import { useForm, useFieldArray } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { useCreateGrupo } from "@workspace/api-client-react"
+import { useQuery } from "@tanstack/react-query"
+import { getSession, setSession } from "@/lib/session"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
-import { Plus, Trash2, ArrowLeft } from "lucide-react"
+import { Plus, Trash2, ArrowLeft, Users, ChevronRight } from "lucide-react"
+
+interface MeuGrupo {
+  grupo: { id: number; nome: string; participantes: { id: number; nome: string; chavePix: string | null }[] }
+  participante: { id: number; nome: string }
+}
 
 const participantSchema = z.object({
   nome: z.string().min(1, "O nome é obrigatório"),
@@ -25,6 +31,20 @@ const formSchema = z.object({
 export default function CreateGroup() {
   const [, setLocation] = useLocation()
   const createGrupo = useCreateGrupo()
+
+  const { data: meusGrupos, isLoading: loadingGrupos } = useQuery<MeuGrupo[]>({
+    queryKey: ["me/grupos"],
+    queryFn: async () => {
+      const res = await fetch("/api/me/grupos", { credentials: "include" })
+      if (!res.ok) throw new Error("Erro ao buscar grupos")
+      return res.json()
+    },
+  })
+
+  const handleEnterGroup = (g: MeuGrupo) => {
+    setSession(g.grupo.id, g.participante.id)
+    setLocation(`/g/${g.grupo.id}`)
+  }
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -66,6 +86,47 @@ export default function CreateGroup() {
       </Button>
 
       <div className="space-y-6">
+
+        {/* Existing groups */}
+        {(loadingGrupos || (meusGrupos && meusGrupos.length > 0)) && (
+          <div className="space-y-2">
+            <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider px-1">
+              Seus grupos
+            </p>
+            {loadingGrupos ? (
+              <p className="text-sm text-muted-foreground px-1">Carregando…</p>
+            ) : (
+              <div className="space-y-2">
+                {meusGrupos!.map(g => (
+                  <button
+                    key={g.grupo.id}
+                    type="button"
+                    onClick={() => handleEnterGroup(g)}
+                    className="w-full flex items-center gap-3 p-3 rounded-xl border border-border/60 bg-card hover:border-primary/50 hover:bg-primary/5 transition-all text-left group"
+                  >
+                    <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                      <Users className="w-4 h-4 text-primary" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-sm text-foreground truncate">{g.grupo.nome}</p>
+                      <p className="text-xs text-muted-foreground">
+                        Como {g.participante.nome} · {g.grupo.participantes.length} participantes
+                      </p>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors shrink-0" />
+                  </button>
+                ))}
+              </div>
+            )}
+            <div className="relative pt-2">
+              <div className="absolute inset-0 flex items-center"><span className="w-full border-t border-border" /></div>
+              <div className="relative flex justify-center text-xs uppercase font-bold tracking-wider">
+                <span className="bg-background px-4 text-muted-foreground">ou crie um novo</span>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div>
           <h1 className="text-3xl font-extrabold tracking-tight text-foreground">Novo Grupo</h1>
           <p className="text-muted-foreground text-lg">Quem vai participar da conta?</p>
