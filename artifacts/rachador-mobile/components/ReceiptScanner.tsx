@@ -13,6 +13,7 @@ import {
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@clerk/expo';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors } from '@/hooks/useColors';
 import type { Participante } from '@workspace/api-client';
 
@@ -170,13 +171,14 @@ export function ReceiptScanner({ participantes, onApply, onClose }: ReceiptScann
     onApply(splits, Math.round(grandTotal * 100) / 100, 'Nota fiscal');
   };
 
+  const insets = useSafeAreaInsets();
   const s = makeStyles(colors);
 
   return (
     <Modal visible animationType="slide" onRequestClose={onClose}>
       <View style={[s.container, { backgroundColor: colors.background }]}>
         {/* Header */}
-        <View style={[s.header, { borderColor: colors.border }]}>
+        <View style={[s.header, { borderColor: colors.border, paddingTop: 14 + insets.top }]}>
           <Pressable onPress={step === 'assigning' ? () => { setStep('capture'); setReceipt(null); } : onClose} style={s.backBtn}>
             <Ionicons name={step === 'assigning' ? 'arrow-back' : 'close'} size={24} color={colors.foreground} />
           </Pressable>
