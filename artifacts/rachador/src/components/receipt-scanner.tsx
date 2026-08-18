@@ -1,5 +1,5 @@
 import { useState, useRef } from "react"
-import { Camera, Upload, X, Plus, Minus, ChevronDown, ChevronUp, Loader2, Receipt } from "lucide-react"
+import { Camera, Upload, X, Plus, Minus, ChevronDown, ChevronUp, Loader2, Receipt, Check } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { formatCurrency } from "@/lib/utils"
@@ -19,11 +19,8 @@ export interface ReceiptData {
   totalComTaxa: number | null
 }
 
-interface ParticipantItemQty {
-  [participanteId: number]: {
-    [itemIdx: number]: number // how many units of this item they had
-  }
-}
+// assignments[participanteId][itemIdx] = quantas unidades essa pessoa consumiu
+type Assignments = Record<number, Record<number, number>>
 
 interface ReceiptScannerProps {
   participantes: Participante[]
@@ -32,13 +29,13 @@ interface ReceiptScannerProps {
 }
 
 export function ReceiptScanner({ participantes, onApply, onClose }: ReceiptScannerProps) {
-  const [step, setStep] = useState<"capture" | "assigning" | "review">("capture")
+  const [step, setStep] = useState<"capture" | "assigning">("capture")
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [receipt, setReceipt] = useState<ReceiptData | null>(null)
   const [taxaPercent, setTaxaPercent] = useState<string>("")
-  const [assignments, setAssignments] = useState<ParticipantItemQty>({})
-  const [expandedItem, setExpandedItem] = useState<number | null>(null)
+  const [assignments, setAssignments] = useState<Assignments>({})
+  const [expandedPerson, setExpandedPerson] = useState<number | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const cameraInputRef = useRef<HTMLInputElement>(null)
 
@@ -63,13 +60,13 @@ export function ReceiptScanner({ participantes, onApply, onClose }: ReceiptScann
       setReceipt(data)
       setTaxaPercent(data.taxaServico != null ? data.taxaServico.toString() : "")
 
-      // Initialize assignments: 0 for each participant for each item
-      const init: ParticipantItemQty = {}
+      const init: Assignments = {}
       participantes.forEach(p => {
         init[p.id] = {}
         data.itens.forEach((_, idx) => { init[p.id][idx] = 0 })
       })
       setAssignments(init)
+      setExpandedPerson(participantes[0]?.id ?? null)
       setStep("assigning")
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Erro desconhecido")
@@ -78,23 +75,38 @@ export function ReceiptScanner({ participantes, onApply, onClose }: ReceiptScann
     }
   }
 
+  // Quantas unidades de um item já foram atribuídas (a todos, exceto opcionalmente uma pessoa)
+  const assignedForItem = (itemIdx: number, excludePersonId?: number): number => {
+    return participantes.reduce((sum, p) => {
+      if (p.id === excludePersonId) return sum
+      return sum + (assignments[p.id]?.[itemIdx] ?? 0)
+    }, 0)
+  }
+
   const setQty = (participanteId: number, itemIdx: number, delta: number) => {
     setAssignments(prev => {
       const current = prev[participanteId]?.[itemIdx] ?? 0
-      const maxQty = receipt!.itens[itemIdx].quantidade
-      const next = Math.max(0, Math.min(maxQty, current + delta))
+      const totalItem = receipt!.itens[itemIdx].quantidade
+      const usedByOthers = assignedForItem(itemIdx, participanteId)
+      const maxAvail = totalItem - usedByOthers
+      const next = Math.max(0, Math.min(maxAvail, current + delta))
       return {
         ...prev,
-        [participanteId]: { ...prev[participanteId], [itemIdx]: next },
+        [participanteId]: { ...(prev[participanteId] ?? {}), [itemIdx]: next },
       }
     })
   }
 
-  const totalAssignedForItem = (itemIdx: number) => {
-    return participantes.reduce((sum, p) => sum + (assignments[p.id]?.[itemIdx] ?? 0), 0)
+  const toggleItem = (participanteId: number, itemIdx: number) => {
+    const current = assignments[participanteId]?.[itemIdx] ?? 0
+    if (current > 0) {
+      setQty(participanteId, itemIdx, -current)
+    } else {
+      setQty(participanteId, itemIdx, +1)
+    }
   }
 
-  // Compute each person's subtotal (items only, no service fee)
+  // Subtotal de itens por pessoa
   const personSubtotal = (participanteId: number): number => {
     if (!receipt) return 0
     return receipt.itens.reduce((sum, item, idx) => {
@@ -107,20 +119,17 @@ export function ReceiptScanner({ participantes, onApply, onClose }: ReceiptScann
   const totalSubtotal = allSubtotals.reduce((a, b) => a + b, 0)
   const taxaVal = parseFloat(taxaPercent) || 0
 
-  // Service fee: split proportionally by subtotal (or equally if all zero)
   const personServiceFee = (participanteId: number): number => {
     const sub = personSubtotal(participanteId)
     if (totalSubtotal === 0) {
-      return (taxaVal / 100) * (receipt?.totalSemTaxa ?? 0) / participantes.length
+      return participantes.length > 0
+        ? (taxaVal / 100) * (receipt?.totalSemTaxa ?? 0) / participantes.length
+        : 0
     }
-    const totalFee = (taxaVal / 100) * totalSubtotal
-    return (sub / totalSubtotal) * totalFee
+    return (sub / totalSubtotal) * (taxaVal / 100) * totalSubtotal
   }
 
-  const personTotal = (participanteId: number): number => {
-    return personSubtotal(participanteId) + personServiceFee(participanteId)
-  }
-
+  const personTotal = (p: number) => personSubtotal(p) + personServiceFee(p)
   const grandTotal = participantes.reduce((sum, p) => sum + personTotal(p.id), 0)
 
   const handleApply = () => {
@@ -128,11 +137,10 @@ export function ReceiptScanner({ participantes, onApply, onClose }: ReceiptScann
     participantes.forEach(p => {
       splits[p.id] = Math.round(personTotal(p.id) * 100) / 100
     })
-    const descricao = "Nota fiscal"
-    onApply(splits, Math.round(grandTotal * 100) / 100, descricao)
+    onApply(splits, Math.round(grandTotal * 100) / 100, "Nota fiscal")
   }
 
-  // ── Capture step ──────────────────────────────────────────────
+  // ── Capture ───────────────────────────────────────────────────────
   if (step === "capture") {
     return (
       <div className="fixed inset-0 z-50 bg-background flex flex-col">
@@ -147,7 +155,7 @@ export function ReceiptScanner({ participantes, onApply, onClose }: ReceiptScann
           {loading ? (
             <div className="flex flex-col items-center gap-4 text-muted-foreground">
               <Loader2 className="w-10 h-10 animate-spin text-primary" />
-              <p className="text-sm font-medium">Analisando a nota fiscal…</p>
+              <p className="text-sm font-medium">Lendo os itens da nota…</p>
             </div>
           ) : (
             <>
@@ -157,7 +165,7 @@ export function ReceiptScanner({ participantes, onApply, onClose }: ReceiptScann
               <div className="text-center space-y-1">
                 <p className="font-semibold text-lg">Tire uma foto da nota</p>
                 <p className="text-sm text-muted-foreground">
-                  A IA vai ler os itens e ajudar a dividir entre as pessoas
+                  A IA lê os itens e você define quem consumiu cada um
                 </p>
               </div>
 
@@ -166,50 +174,28 @@ export function ReceiptScanner({ participantes, onApply, onClose }: ReceiptScann
               )}
 
               <div className="flex flex-col gap-3 w-full max-w-xs">
-                <Button
-                  size="lg"
-                  className="h-14 text-base gap-2"
-                  onClick={() => cameraInputRef.current?.click()}
-                >
-                  <Camera className="w-5 h-5" />
-                  Tirar foto
+                <Button size="lg" className="h-14 text-base gap-2" onClick={() => cameraInputRef.current?.click()}>
+                  <Camera className="w-5 h-5" /> Tirar foto
                 </Button>
-                <Button
-                  size="lg"
-                  variant="outline"
-                  className="h-14 text-base gap-2"
-                  onClick={() => fileInputRef.current?.click()}
-                >
-                  <Upload className="w-5 h-5" />
-                  Escolher da galeria
+                <Button size="lg" variant="outline" className="h-14 text-base gap-2" onClick={() => fileInputRef.current?.click()}>
+                  <Upload className="w-5 h-5" /> Escolher da galeria
                 </Button>
               </div>
             </>
           )}
         </div>
 
-        <input
-          ref={cameraInputRef}
-          type="file"
-          accept="image/*"
-          capture="environment"
-          className="hidden"
-          onChange={e => { const f = e.target.files?.[0]; if (f) scanImage(f) }}
-        />
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          className="hidden"
-          onChange={e => { const f = e.target.files?.[0]; if (f) scanImage(f) }}
-        />
+        <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="hidden"
+          onChange={e => { const f = e.target.files?.[0]; if (f) scanImage(f) }} />
+        <input ref={fileInputRef} type="file" accept="image/*" className="hidden"
+          onChange={e => { const f = e.target.files?.[0]; if (f) scanImage(f) }} />
       </div>
     )
   }
 
-  // ── Assigning step ────────────────────────────────────────────
   if (!receipt) return null
 
+  // ── Assigning ─────────────────────────────────────────────────────
   return (
     <div className="fixed inset-0 z-50 bg-background flex flex-col overflow-hidden">
       <header className="flex items-center gap-3 p-4 border-b shrink-0">
@@ -217,45 +203,58 @@ export function ReceiptScanner({ participantes, onApply, onClose }: ReceiptScann
           <X className="w-5 h-5" />
         </Button>
         <div className="flex-1">
-          <h2 className="text-lg font-bold">Quem comeu o quê?</h2>
-          <p className="text-xs text-muted-foreground">Selecione as quantidades por pessoa</p>
+          <h2 className="text-lg font-bold">Quem consumiu o quê?</h2>
+          <p className="text-xs text-muted-foreground">
+            {receipt.itens.length} iten{receipt.itens.length !== 1 ? "s" : ""} encontrado{receipt.itens.length !== 1 ? "s" : ""} na nota
+          </p>
         </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="text-xs text-muted-foreground"
-          onClick={() => { setStep("capture"); setReceipt(null) }}
-        >
+        <Button variant="ghost" size="sm" className="text-xs text-muted-foreground shrink-0"
+          onClick={() => { setStep("capture"); setReceipt(null) }}>
           Reanalisar
         </Button>
       </header>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-3 pb-2">
-        {/* Items */}
-        {receipt.itens.map((item, idx) => {
-          const assigned = totalAssignedForItem(idx)
-          const isOver = assigned > item.quantidade
-          const isExpanded = expandedItem === idx
+
+        {/* Aviso de itens não atribuídos */}
+        {receipt.itens.some((item, idx) => assignedForItem(idx) < item.quantidade) && (
+          <div className="rounded-xl bg-amber-50 border border-amber-200 px-4 py-2.5 text-xs text-amber-700 font-medium">
+            {receipt.itens.filter((item, idx) => assignedForItem(idx) < item.quantidade).length} iten(s) ainda não totalmente atribuído(s)
+          </div>
+        )}
+
+        {/* Card por pessoa */}
+        {participantes.map(p => {
+          const isExpanded = expandedPerson === p.id
+          const sub = personSubtotal(p.id)
+          const total = personTotal(p.id)
+          const itemCount = receipt.itens.reduce((n, _, idx) => n + (assignments[p.id]?.[idx] ?? 0 > 0 ? 1 : 0), 0)
 
           return (
-            <div key={idx} className={`rounded-2xl border-2 overflow-hidden transition-colors ${isOver ? "border-destructive/60" : "border-border/50"}`}>
-              {/* Item header */}
+            <div key={p.id} className={`rounded-2xl border-2 overflow-hidden transition-colors ${isExpanded ? "border-primary/60" : "border-border/50"}`}>
+              {/* Person header */}
               <button
                 type="button"
-                className="w-full flex items-center gap-3 p-3 text-left bg-card"
-                onClick={() => setExpandedItem(isExpanded ? null : idx)}
+                className={`w-full flex items-center gap-3 p-3.5 text-left transition-colors ${isExpanded ? "bg-primary/5" : "bg-card"}`}
+                onClick={() => setExpandedPerson(isExpanded ? null : p.id)}
               >
+                <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 font-bold text-sm transition-colors ${
+                  isExpanded ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground"
+                }`}>
+                  {p.nome.charAt(0).toUpperCase()}
+                </div>
                 <div className="flex-1 min-w-0">
-                  <p className="font-medium text-sm truncate">{item.nome}</p>
+                  <p className="font-bold text-sm text-foreground">{p.nome}</p>
                   <p className="text-xs text-muted-foreground">
-                    {item.quantidade}x · {formatCurrency(item.precoUnitario)} cada
+                    {itemCount === 0
+                      ? "Nenhum item selecionado"
+                      : `${itemCount} iten${itemCount !== 1 ? "s" : ""} · ${formatCurrency(sub)}`}
                   </p>
                 </div>
-                <div className="text-right shrink-0">
-                  <p className="text-sm font-bold">{formatCurrency(item.precoTotal)}</p>
-                  <p className={`text-xs ${isOver ? "text-destructive font-medium" : "text-muted-foreground"}`}>
-                    {assigned}/{item.quantidade} atribuído{assigned !== 1 ? "s" : ""}
-                  </p>
+                <div className="text-right shrink-0 mr-1">
+                  {total > 0 && (
+                    <p className="font-bold text-base text-foreground">{formatCurrency(total)}</p>
+                  )}
                 </div>
                 {isExpanded ? (
                   <ChevronUp className="w-4 h-4 text-muted-foreground shrink-0" />
@@ -264,36 +263,78 @@ export function ReceiptScanner({ participantes, onApply, onClose }: ReceiptScann
                 )}
               </button>
 
-              {/* Per-person assignment */}
+              {/* Item list for this person */}
               {isExpanded && (
-                <div className="border-t divide-y bg-secondary/20">
-                  {participantes.map(p => {
+                <div className="border-t divide-y bg-background">
+                  {receipt.itens.map((item, idx) => {
                     const qty = assignments[p.id]?.[idx] ?? 0
+                    const isSelected = qty > 0
+                    const totalAvail = item.quantidade
+                    const usedByOthers = assignedForItem(idx, p.id)
+                    const maxForMe = totalAvail - usedByOthers
+                    const isSingleUnit = totalAvail === 1
+
                     return (
-                      <div key={p.id} className="flex items-center gap-3 px-3 py-2.5">
-                        <span className="flex-1 text-sm font-medium truncate">{p.nome}</span>
-                        <div className="flex items-center gap-2 shrink-0">
+                      <div key={idx} className={`flex items-center gap-3 px-4 py-3 transition-colors ${isSelected ? "bg-primary/5" : ""}`}>
+                        {/* Checkbox / toggle for single-unit items */}
+                        {isSingleUnit ? (
                           <button
                             type="button"
-                            onClick={() => setQty(p.id, idx, -1)}
-                            disabled={qty === 0}
-                            className="w-7 h-7 rounded-full border-2 border-border flex items-center justify-center disabled:opacity-30 hover:bg-secondary transition-colors"
+                            onClick={() => toggleItem(p.id, idx)}
+                            disabled={!isSelected && maxForMe === 0}
+                            className={`w-6 h-6 rounded-md border-2 flex items-center justify-center shrink-0 transition-colors ${
+                              isSelected
+                                ? "bg-primary border-primary"
+                                : maxForMe === 0
+                                  ? "border-border/40 opacity-40 cursor-not-allowed"
+                                  : "border-border hover:border-primary/60"
+                            }`}
                           >
-                            <Minus className="w-3 h-3" />
+                            {isSelected && <Check className="w-3.5 h-3.5 text-primary-foreground" />}
                           </button>
-                          <span className="w-5 text-center text-sm font-bold tabular-nums">{qty}</span>
-                          <button
-                            type="button"
-                            onClick={() => setQty(p.id, idx, +1)}
-                            disabled={qty >= item.quantidade}
-                            className="w-7 h-7 rounded-full border-2 border-primary flex items-center justify-center disabled:opacity-30 hover:bg-primary/10 transition-colors"
-                          >
-                            <Plus className="w-3 h-3 text-primary" />
-                          </button>
-                          {qty > 0 && (
-                            <span className="text-xs text-muted-foreground w-12 text-right tabular-nums">
+                        ) : (
+                          /* +/- stepper for multi-unit items */
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => setQty(p.id, idx, -1)}
+                              disabled={qty === 0}
+                              className="w-6 h-6 rounded-full border-2 border-border flex items-center justify-center disabled:opacity-30 hover:bg-secondary transition-colors"
+                            >
+                              <Minus className="w-3 h-3" />
+                            </button>
+                            <span className="w-5 text-center text-sm font-bold tabular-nums">{qty}</span>
+                            <button
+                              type="button"
+                              onClick={() => setQty(p.id, idx, +1)}
+                              disabled={qty >= maxForMe && maxForMe <= qty}
+                              className="w-6 h-6 rounded-full border-2 border-primary flex items-center justify-center disabled:opacity-30 hover:bg-primary/10 transition-colors"
+                            >
+                              <Plus className="w-3 h-3 text-primary" />
+                            </button>
+                          </div>
+                        )}
+
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-sm font-medium truncate ${isSelected ? "text-foreground" : "text-muted-foreground"}`}>
+                            {item.nome}
+                          </p>
+                          {!isSingleUnit && (
+                            <p className="text-xs text-muted-foreground">
+                              {formatCurrency(item.precoUnitario)} cada · {maxForMe} disponível{maxForMe !== 1 ? "is" : ""}
+                            </p>
+                          )}
+                        </div>
+
+                        <div className="text-right shrink-0">
+                          {isSelected ? (
+                            <p className="text-sm font-bold text-foreground tabular-nums">
                               {formatCurrency(qty * item.precoUnitario)}
-                            </span>
+                            </p>
+                          ) : (
+                            <p className="text-sm text-muted-foreground tabular-nums">
+                              {formatCurrency(isSingleUnit ? item.precoUnitario : item.precoUnitario)}
+                            </p>
                           )}
                         </div>
                       </div>
@@ -305,33 +346,38 @@ export function ReceiptScanner({ participantes, onApply, onClose }: ReceiptScann
           )
         })}
 
-        {/* Service fee */}
-        <div className="rounded-2xl border-2 border-border/50 p-3 space-y-2 bg-card">
-          <p className="text-sm font-medium">Taxa de serviço (%)</p>
-          <div className="flex items-center gap-2">
-            <Input
-              type="number"
-              min="0"
-              max="30"
-              step="0.5"
-              placeholder="Ex: 10"
-              value={taxaPercent}
-              onChange={e => setTaxaPercent(e.target.value)}
-              className="h-10 w-24 text-center font-bold"
-            />
-            <span className="text-sm text-muted-foreground">%</span>
-            {taxaVal > 0 && (
-              <span className="text-xs text-muted-foreground ml-2">
-                Dividida proporcionalmente pelo consumo de cada um
-              </span>
+        {/* Taxa de serviço */}
+        <div className="rounded-2xl border-2 border-border/50 p-4 space-y-3 bg-card">
+          <div>
+            <p className="text-sm font-semibold">Taxa de serviço</p>
+            <p className="text-xs text-muted-foreground">Dividida proporcionalmente pelo consumo de cada um</p>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="relative">
+              <Input
+                type="number"
+                min="0"
+                max="30"
+                step="0.5"
+                placeholder="0"
+                value={taxaPercent}
+                onChange={e => setTaxaPercent(e.target.value)}
+                className="h-10 w-20 text-center font-bold pr-7"
+              />
+              <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">%</span>
+            </div>
+            {taxaVal > 0 && totalSubtotal > 0 && (
+              <p className="text-xs text-muted-foreground">
+                = {formatCurrency((taxaVal / 100) * totalSubtotal)} no total
+              </p>
             )}
           </div>
         </div>
       </div>
 
-      {/* Totals & apply */}
+      {/* Footer: resumo + botão */}
       <div className="border-t bg-card p-4 shrink-0 space-y-3">
-        <div className="space-y-1.5">
+        <div className="space-y-1">
           {participantes.map(p => {
             const total = personTotal(p.id)
             if (total === 0) return null
@@ -342,7 +388,7 @@ export function ReceiptScanner({ participantes, onApply, onClose }: ReceiptScann
               </div>
             )
           })}
-          <div className="flex items-center justify-between font-bold text-base border-t pt-1.5 mt-1">
+          <div className="flex items-center justify-between font-bold text-base border-t pt-2 mt-1">
             <span>Total</span>
             <span className="tabular-nums">{formatCurrency(grandTotal)}</span>
           </div>
@@ -352,6 +398,7 @@ export function ReceiptScanner({ participantes, onApply, onClose }: ReceiptScann
           size="lg"
           className="w-full h-12 text-base shadow-lg shadow-primary/20"
           onClick={handleApply}
+          disabled={grandTotal === 0}
         >
           Aplicar divisão
         </Button>
