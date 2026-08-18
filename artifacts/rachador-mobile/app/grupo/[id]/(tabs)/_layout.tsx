@@ -11,12 +11,10 @@ import * as Haptics from 'expo-haptics';
 import { useColors } from '@/hooks/useColors';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useGetGrupo } from '@workspace/api-client-react';
-import { useSession } from '@/context/SessionContext';
 
 function HeaderRight({ grupoId }: { grupoId: number }) {
   const { data: grupo } = useGetGrupo(grupoId);
   const colors = useColors();
-  const { clearSession } = useSession();
 
   const copyCode = async () => {
     if (!grupo) return;
@@ -25,19 +23,10 @@ function HeaderRight({ grupoId }: { grupoId: number }) {
     Alert.alert('Código copiado!', `Código: ${grupo.codigoConvite}`);
   };
 
-  const switchUser = async () => {
-    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    await clearSession(grupoId);
-    router.replace(`/grupo/${grupoId}/entrar`);
-  };
-
   return (
     <View style={styles.headerRight}>
       <Pressable onPress={copyCode} style={styles.headerButton}>
         <Feather name="copy" size={20} color={colors.foreground} />
-      </Pressable>
-      <Pressable onPress={switchUser} style={styles.headerButton}>
-        <Feather name="user" size={20} color={colors.foreground} />
       </Pressable>
     </View>
   );

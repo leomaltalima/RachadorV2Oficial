@@ -16,7 +16,7 @@ import {
 } from "@workspace/api-client-react"
 import { useQueryClient } from "@tanstack/react-query"
 import { useUser } from "@clerk/react"
-import { getSession, clearSession } from "@/lib/session"
+import { getSession } from "@/lib/session"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -59,11 +59,6 @@ export default function GroupDashboard() {
       setLocation(`/g/${grupoId}/entrar`)
     }
   }, [myParticipantId, grupoId, setLocation])
-
-  const handleSwitchUser = () => {
-    clearSession(grupoId)
-    setLocation(`/g/${grupoId}/entrar`)
-  }
 
   const [activeTab, setActiveTab] = useState("despesas")
   const [isAddParticipantOpen, setIsAddParticipantOpen] = useState(false)
@@ -385,15 +380,11 @@ export default function GroupDashboard() {
               </div>
             )}
 
-            <button
-              onClick={handleSwitchUser}
-              className="flex items-center gap-1.5 bg-secondary hover:bg-secondary/80 transition-colors rounded-full pl-2 pr-3 py-1.5 ml-1"
-              title="Trocar usuário"
-            >
+            <div className="flex items-center gap-1.5 bg-secondary rounded-full pl-2 pr-3 py-1.5 ml-1">
               <span className="text-xs font-semibold text-foreground max-w-[80px] truncate">
                 {myParticipantId ? getParticipantName(myParticipantId) : "?"}
               </span>
-            </button>
+            </div>
           </div>
         </div>
       </header>

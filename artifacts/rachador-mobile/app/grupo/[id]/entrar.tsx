@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -26,6 +26,8 @@ import {
   registerPushToken,
 } from '@/hooks/usePushNotifications';
 
+type ParticipanteExtended = Participante & { claimado?: boolean; meu?: boolean };
+
 const API_BASE_URL = `https://${process.env.EXPO_PUBLIC_DOMAIN}`;
 
 async function setupPushNotifications(
@@ -49,7 +51,7 @@ export default function EntrarScreen() {
   const grupoId = parseInt(id ?? '0', 10);
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { setSession } = useSession();
+  const { getSession, setSession, sessionsLoaded } = useSession();
   const { data: grupo, isLoading, isError } = useGetGrupo(grupoId);
   const addParticipante = useAddParticipante();
 
@@ -57,7 +59,16 @@ export default function EntrarScreen() {
   const [newNome, setNewNome] = useState('');
   const [newPix, setNewPix] = useState('');
 
-  const selectParticipante = async (p: Participante) => {
+  // If already has a session for this group, skip straight in
+  useEffect(() => {
+    if (!sessionsLoaded) return;
+    const existing = getSession(grupoId);
+    if (existing !== null) {
+      router.replace(`/grupo/${grupoId}/despesas`);
+    }
+  }, [sessionsLoaded, grupoId]);
+
+  const selectParticipante = async (p: ParticipanteExtended) => {
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     await setSession(grupoId, p.id);
     // Request push permission after session is set (fire-and-forget)
@@ -130,36 +141,69 @@ export default function EntrarScreen() {
 
       {/* Participants list */}
       <View style={styles.participantesList}>
-        {grupo.participantes.map((p) => (
-          <Pressable
-            key={p.id}
-            style={({ pressed }) => [
-              styles.participanteItem,
-              {
-                backgroundColor: colors.card,
-                borderColor: colors.border,
-                opacity: pressed ? 0.75 : 1,
-              },
-            ]}
-            onPress={() => selectParticipante(p)}
-            testID={`participante-${p.id}`}
-          >
-            <View style={[styles.participanteAvatar, { backgroundColor: colors.secondary }]}>
-              <Text style={[styles.participanteAvatarText, { color: colors.foreground }]}>
-                {p.nome.charAt(0).toUpperCase()}
-              </Text>
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.participanteNome, { color: colors.foreground }]}>{p.nome}</Text>
-              {p.chavePix && (
-                <Text style={[styles.participantePix, { color: colors.mutedForeground }]} numberOfLines={1}>
-                  Pix: {p.chavePix}
+        {(grupo.participantes as ParticipanteExtended[]).map((p) => {
+          const isMe = !!p.meu;
+          const lockedByOther = !!p.claimado && !isMe;
+
+          if (lockedByOther) {
+            return (
+              <View
+                key={p.id}
+                style={[
+                  styles.participanteItem,
+                  {
+                    backgroundColor: colors.muted + '66',
+                    borderColor: colors.border,
+                    opacity: 0.55,
+                  },
+                ]}
+              >
+                <View style={[styles.participanteAvatar, { backgroundColor: colors.secondary }]}>
+                  <Text style={[styles.participanteAvatarText, { color: colors.mutedForeground }]}>
+                    {p.nome.charAt(0).toUpperCase()}
+                  </Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.participanteNome, { color: colors.mutedForeground }]}>{p.nome}</Text>
+                  <Text style={[styles.participantePix, { color: colors.mutedForeground }]}>
+                    Já vinculado a uma conta
+                  </Text>
+                </View>
+                <Ionicons name="lock-closed" size={16} color={colors.mutedForeground} />
+              </View>
+            );
+          }
+
+          return (
+            <Pressable
+              key={p.id}
+              style={({ pressed }) => [
+                styles.participanteItem,
+                {
+                  backgroundColor: isMe ? colors.primary + '12' : colors.card,
+                  borderColor: isMe ? colors.primary : colors.border,
+                  borderWidth: isMe ? 2 : 1,
+                  opacity: pressed ? 0.75 : 1,
+                },
+              ]}
+              onPress={() => selectParticipante(p)}
+              testID={`participante-${p.id}`}
+            >
+              <View style={[styles.participanteAvatar, { backgroundColor: isMe ? colors.primary + '22' : colors.secondary }]}>
+                <Text style={[styles.participanteAvatarText, { color: isMe ? colors.primary : colors.foreground }]}>
+                  {p.nome.charAt(0).toUpperCase()}
                 </Text>
-              )}
-            </View>
-            <Ionicons name="chevron-forward" size={18} color={colors.mutedForeground} />
-          </Pressable>
-        ))}
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.participanteNome, { color: colors.foreground }]}>{p.nome}</Text>
+                <Text style={[styles.participantePix, { color: colors.mutedForeground }]} numberOfLines={1}>
+                  {isMe ? 'Sua conta — toque para entrar' : p.chavePix ? `Pix: ${p.chavePix}` : ''}
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={isMe ? colors.primary : colors.mutedForeground} />
+            </Pressable>
+          );
+        })}
       </View>
 
       {/* Not in the list */}
