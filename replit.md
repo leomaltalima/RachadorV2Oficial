@@ -46,7 +46,7 @@ App web para dividir despesas em grupo — crie um grupo, adicione participantes
 
 ## User preferences
 
-_Populate as you build — explicit user instructions worth remembering across sessions._
+- **Toda alteração deve ser aplicada no web (`artifacts/rachador`) E no mobile (`artifacts/rachador-mobile`) simultaneamente**, salvo instrução contrária explícita.
 
 ## Gotchas
 
