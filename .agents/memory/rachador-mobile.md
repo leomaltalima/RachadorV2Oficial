@@ -26,4 +26,12 @@ description: Key decisions and patterns for the Expo mobile app built in artifac
 - Tab names: `despesas`, `saldos`, `historico`
 - NativeTabs for iOS 26+, classic Tabs fallback
 
+## Clerk auth (mobile)
+- `@clerk/expo` installed; `ClerkProvider` + `ClerkLoaded` wrap the root layout in `_layout.tsx`
+- `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY=$CLERK_PUBLISHABLE_KEY` prepended to the `dev` script in `package.json`
+- Route groups: `app/(auth)/` for sign-in/sign-up screens; `app/(home)/` for the authenticated home screen
+- `(auth)/_layout.tsx` redirects to `/` if already signed in; `(home)/_layout.tsx` redirects to `/(auth)/sign-in` if not signed in and calls `setAuthTokenGetter(() => getToken())` for Bearer token auth
+- Custom sign-in and sign-up screens (no native Clerk components — incompatible with Expo Go); email+password + Google SSO via `useSignIn`, `useSSO`
+- Raw `fetch` calls in mobile must include `Authorization: Bearer <token>` — no browser cookie jar; use `getToken()` from `useAuth()`
+
 **Why:** Keeps the mobile shell thin — all business logic lives in the API server; the app is purely UI + session.
