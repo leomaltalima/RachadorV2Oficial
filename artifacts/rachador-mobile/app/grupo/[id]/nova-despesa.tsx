@@ -25,7 +25,7 @@ import {
 } from '@workspace/api-client-react';
 import { ReceiptScanner } from '@/components/ReceiptScanner';
 
-type SplitMode = 'equal' | 'custom';
+type SplitMode = 'equal' | 'select' | 'custom';
 
 export default function NovaDespesaScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -47,6 +47,27 @@ export default function NovaDespesaScreen() {
   const [splitMode, setSplitMode] = useState<SplitMode>('equal');
   const [customShares, setCustomShares] = useState<Record<number, string>>({});
   const [showScanner, setShowScanner] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [selectedInitialized, setSelectedInitialized] = useState(false);
+
+  // Initialize selectedIds (all selected) once grupo loads
+  if (grupo && !selectedInitialized) {
+    setSelectedIds(new Set(grupo.participantes.map((p) => p.id)));
+    setSelectedInitialized(true);
+  }
+
+  const toggleParticipant = (id: number) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        if (next.size === 1) return prev; // keep at least one
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
 
   const valorTotal = parseFloat(valorStr.replace(',', '.')) || 0;
 
@@ -79,6 +100,23 @@ export default function NovaDespesaScreen() {
     }));
   }, [participantes, customShares]);
 
+  const selectedCount = selectedIds.size;
+  const perPersonSelect = selectedCount > 0 ? valorTotal / selectedCount : 0;
+
+  const divisoesSelect = useMemo(() => {
+    const included = participantes.filter((p) => selectedIds.has(p.id));
+    if (included.length === 0 || valorTotal <= 0) return participantes.map((p) => ({ participanteId: p.id, valorDevido: 0 }));
+    const per = Math.floor((valorTotal / included.length) * 100) / 100;
+    const remainder = Math.round((valorTotal - per * included.length) * 100) / 100;
+    let lastIdx = 0;
+    return participantes.map((p) => {
+      if (!selectedIds.has(p.id)) return { participanteId: p.id, valorDevido: 0 };
+      const isFirst = lastIdx === 0;
+      lastIdx++;
+      return { participanteId: p.id, valorDevido: isFirst ? per + remainder : per };
+    });
+  }, [participantes, selectedIds, valorTotal]);
+
   const customTotal = divisoesCustom.reduce((s, d) => s + d.valorDevido, 0);
   const customValid = Math.abs(customTotal - valorTotal) < 0.02;
 
@@ -86,13 +124,16 @@ export default function NovaDespesaScreen() {
     descricao.trim().length > 0 &&
     valorTotal > 0 &&
     pagoPorId !== null &&
-    (splitMode === 'equal' || customValid) &&
+    (splitMode === 'equal' || (splitMode === 'select' && selectedCount > 0) || customValid) &&
     !createDespesa.isPending;
 
   const handleSubmit = async () => {
     if (!canSubmit || pagoPorId === null) return;
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    const divisoes = splitMode === 'equal' ? divisoesIguais : divisoesCustom;
+    const divisoes =
+      splitMode === 'equal' ? divisoesIguais :
+      splitMode === 'select' ? divisoesSelect :
+      divisoesCustom;
     try {
       await createDespesa.mutateAsync({
         grupoId,
@@ -208,7 +249,11 @@ export default function NovaDespesaScreen() {
       <View style={styles.section}>
         <Text style={[styles.label, { color: colors.mutedForeground }]}>DIVISÃO</Text>
         <View style={styles.splitToggle}>
-          {(['equal', 'custom'] as SplitMode[]).map((mode) => (
+          {([
+            { mode: 'equal', icon: 'people-outline', label: 'Igual\npara todos' },
+            { mode: 'select', icon: 'person-add-outline', label: 'Escolher\nquem divide' },
+            { mode: 'custom', icon: 'calculator-outline', label: 'Valores\ndiferentes' },
+          ] as { mode: SplitMode; icon: string; label: string }[]).map(({ mode, icon, label }) => (
             <Pressable
               key={mode}
               style={[
@@ -221,17 +266,70 @@ export default function NovaDespesaScreen() {
               ]}
               onPress={() => setSplitMode(mode)}
             >
+              <Ionicons
+                name={icon as any}
+                size={16}
+                color={splitMode === mode ? colors.primaryForeground : colors.mutedForeground}
+              />
               <Text
                 style={[
                   styles.splitToggleText,
-                  { color: splitMode === mode ? colors.primaryForeground : colors.foreground },
+                  { color: splitMode === mode ? colors.primaryForeground : colors.foreground, textAlign: 'center' },
                 ]}
               >
-                {mode === 'equal' ? 'Igualitária' : 'Personalizada'}
+                {label}
               </Text>
             </Pressable>
           ))}
         </View>
+
+        {/* Select: choose participants */}
+        {splitMode === 'select' && (
+          <View style={styles.selectContainer}>
+            <Text style={[styles.selectHint, { color: colors.mutedForeground }]}>
+              Selecione quem participa dessa divisão
+            </Text>
+            {participantes.map((p) => {
+              const isSelected = selectedIds.has(p.id);
+              return (
+                <Pressable
+                  key={p.id}
+                  style={({ pressed }) => [
+                    styles.selectItem,
+                    {
+                      backgroundColor: isSelected ? colors.primary + '0D' : colors.card,
+                      borderColor: isSelected ? colors.primary : colors.border,
+                      opacity: pressed ? 0.75 : 1,
+                    },
+                  ]}
+                  onPress={() => toggleParticipant(p.id)}
+                >
+                  <Text style={[styles.selectItemName, { color: isSelected ? colors.foreground : colors.mutedForeground }]}>
+                    {p.nome}
+                  </Text>
+                  <View style={[
+                    styles.selectCheckbox,
+                    { borderColor: isSelected ? colors.primary : colors.border, backgroundColor: isSelected ? colors.primary : 'transparent' },
+                  ]}>
+                    {isSelected && <Ionicons name="checkmark" size={13} color={colors.primaryForeground} />}
+                  </View>
+                </Pressable>
+              );
+            })}
+            {valorTotal > 0 && selectedCount > 0 && (
+              <View style={[styles.splitPreview, { backgroundColor: colors.muted, borderColor: colors.border }]}>
+                <View style={styles.splitRow}>
+                  <Text style={[styles.splitNome, { color: colors.foreground }]}>
+                    Cada um paga ({selectedCount})
+                  </Text>
+                  <Text style={[styles.splitValor, { color: colors.foreground }]}>
+                    R$ {perPersonSelect.toFixed(2)}
+                  </Text>
+                </View>
+              </View>
+            )}
+          </View>
+        )}
 
         {/* Split details */}
         {splitMode === 'equal' && valorTotal > 0 && participantes.length > 0 && (
@@ -377,15 +475,48 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   splitToggleItem: {
-    height: 40,
+    height: 60,
     borderRadius: 8,
     borderWidth: 1.5,
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 4,
+    paddingVertical: 6,
+    paddingHorizontal: 4,
   },
   splitToggleText: {
     fontFamily: 'PlusJakartaSans_600SemiBold',
+    fontSize: 10,
+    lineHeight: 13,
+  },
+  selectContainer: {
+    gap: 8,
+  },
+  selectHint: {
+    fontFamily: 'PlusJakartaSans_400Regular',
     fontSize: 13,
+    paddingHorizontal: 2,
+  },
+  selectItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1.5,
+  },
+  selectItemName: {
+    fontFamily: 'PlusJakartaSans_600SemiBold',
+    fontSize: 14,
+  },
+  selectCheckbox: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   splitPreview: {
     borderRadius: 10,
