@@ -256,32 +256,44 @@ export default function SaldosScreen() {
                 {formatCurrency(pagarDebito.valor)}
               </Text>
 
-              {/* Pix key */}
-              {getChavePix(pagarDebito.paraId) && (
-                <View style={[styles.pixBox, { backgroundColor: colors.secondary, borderColor: colors.border }]}>
-                  <View style={{ flex: 1, minWidth: 0 }}>
-                    <Text style={[styles.pixLabel, { color: colors.mutedForeground }]}>
-                      Pix de {getNome(pagarDebito.paraId)}
-                    </Text>
-                    <Text style={[styles.pixKey, { color: colors.foreground }]} numberOfLines={1}>
-                      {getChavePix(pagarDebito.paraId)}
-                    </Text>
+              {/* Pix key — sempre visível */}
+              {(() => {
+                const pix = getChavePix(pagarDebito.paraId);
+                return (
+                  <View style={[styles.pixBox, { backgroundColor: colors.secondary, borderColor: pix ? colors.primary + '55' : colors.border }]}>
+                    <Ionicons name="cash-outline" size={20} color={pix ? colors.primary : colors.mutedForeground} style={{ marginTop: 1 }} />
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <Text style={[styles.pixLabel, { color: colors.mutedForeground }]}>
+                        Chave Pix de {getNome(pagarDebito.paraId)}
+                      </Text>
+                      {pix ? (
+                        <Text style={[styles.pixKey, { color: colors.foreground }]} numberOfLines={2} selectable>
+                          {pix}
+                        </Text>
+                      ) : (
+                        <Text style={[styles.pixKey, { color: colors.mutedForeground, fontStyle: 'italic' }]}>
+                          Sem chave Pix cadastrada
+                        </Text>
+                      )}
+                    </View>
+                    {pix && (
+                      <Pressable
+                        onPress={async () => {
+                          await Clipboard.setStringAsync(pix);
+                          await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                          Alert.alert('Copiado!', 'Chave Pix copiada para a área de transferência.');
+                        }}
+                        style={({ pressed }) => [
+                          styles.pixCopyBtn,
+                          { backgroundColor: colors.primary + '1A', opacity: pressed ? 0.7 : 1 },
+                        ]}
+                      >
+                        <Ionicons name="copy-outline" size={18} color={colors.primary} />
+                      </Pressable>
+                    )}
                   </View>
-                  <Pressable
-                    onPress={async () => {
-                      await Clipboard.setStringAsync(getChavePix(pagarDebito.paraId)!);
-                      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                      Alert.alert('Copiado!', 'Chave Pix copiada para a área de transferência.');
-                    }}
-                    style={({ pressed }) => [
-                      styles.pixCopyBtn,
-                      { backgroundColor: colors.primary + '1A', opacity: pressed ? 0.7 : 1 },
-                    ]}
-                  >
-                    <Ionicons name="copy-outline" size={18} color={colors.primary} />
-                  </Pressable>
-                </View>
-              )}
+                );
+              })()}
             </>
           )}
         </ScrollView>

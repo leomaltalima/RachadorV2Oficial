@@ -718,17 +718,26 @@ export default function GroupDashboard() {
               <div className="text-center">
                 <span className="text-3xl font-extrabold text-foreground">{formatCurrency(payValor)}</span>
               </div>
-              {payParaId && getParticipantPix(payParaId) && (
-                <div className="flex items-center gap-2 bg-secondary/60 rounded-xl px-3 py-2.5">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs text-muted-foreground mb-0.5">Pix de {getParticipantName(payParaId)}</p>
-                    <p className="text-sm font-mono font-semibold text-foreground truncate">{getParticipantPix(payParaId)}</p>
+              {payParaId && (() => {
+                const pix = getParticipantPix(payParaId)
+                return (
+                  <div className={`flex items-center gap-3 rounded-xl px-3 py-3 border ${pix ? "bg-primary/5 border-primary/30" : "bg-secondary/50 border-border/60"}`}>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-muted-foreground mb-0.5">Chave Pix de {getParticipantName(payParaId)}</p>
+                      {pix ? (
+                        <p className="text-sm font-mono font-semibold text-foreground break-all">{pix}</p>
+                      ) : (
+                        <p className="text-sm text-muted-foreground italic">Sem chave Pix cadastrada</p>
+                      )}
+                    </div>
+                    {pix && (
+                      <Button variant="ghost" size="icon" className="shrink-0 h-8 w-8" onClick={() => handleCopyPix(pix)}>
+                        <Copy className="w-3.5 h-3.5" />
+                      </Button>
+                    )}
                   </div>
-                  <Button variant="ghost" size="icon" className="shrink-0 h-8 w-8" onClick={() => handleCopyPix(getParticipantPix(payParaId)!)}>
-                    <Copy className="w-3.5 h-3.5" />
-                  </Button>
-                </div>
-              )}
+                )
+              })()}
               <div className="space-y-2">
                 <Label className="text-sm font-medium">Comprovante <span className="text-muted-foreground font-normal">(opcional)</span></Label>
                 <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleComprovanteChange} />
