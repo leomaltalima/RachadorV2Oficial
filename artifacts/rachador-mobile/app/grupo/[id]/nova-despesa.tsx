@@ -27,6 +27,35 @@ import { ReceiptScanner } from '@/components/ReceiptScanner';
 
 type SplitMode = 'equal' | 'select' | 'custom';
 
+/** Converte dígitos brutos em formato "1.234,56" (centavos primeiro) */
+function formatCurrencyInput(raw: string): string {
+  const digits = raw.replace(/\D/g, '');
+  if (!digits) return '';
+  const num = parseInt(digits, 10);
+  if (num === 0) return '';
+  const reais = Math.floor(num / 100);
+  const centavos = num % 100;
+  const reaisStr = reais > 0 ? reais.toLocaleString('pt-BR') : '0';
+  return `${reaisStr},${centavos.toString().padStart(2, '0')}`;
+}
+
+/** Converte valor numérico em string mascarada */
+function toCurrencyMask(value: number): string {
+  const cents = Math.round(value * 100);
+  if (cents === 0) return '';
+  const reais = Math.floor(cents / 100);
+  const centavos = cents % 100;
+  const reaisStr = reais > 0 ? reais.toLocaleString('pt-BR') : '0';
+  return `${reaisStr},${centavos.toString().padStart(2, '0')}`;
+}
+
+/** Converte "1.234,56" → 1234.56 */
+function parseCurrencyMask(masked: string): number {
+  const digits = masked.replace(/\D/g, '');
+  if (!digits) return 0;
+  return parseInt(digits, 10) / 100;
+}
+
 export default function NovaDespesaScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const grupoId = parseInt(id ?? '0', 10);
@@ -69,15 +98,15 @@ export default function NovaDespesaScreen() {
     });
   };
 
-  const valorTotal = parseFloat(valorStr.replace(',', '.')) || 0;
+  const valorTotal = parseCurrencyMask(valorStr);
 
   const handleReceiptApply = (splits: Record<number, number>, total: number, desc: string) => {
     const newShares: Record<number, string> = {};
     Object.entries(splits).forEach(([id, val]) => {
-      newShares[Number(id)] = val.toFixed(2).replace('.', ',');
+      newShares[Number(id)] = toCurrencyMask(val);
     });
     setCustomShares(newShares);
-    setValorStr(total.toFixed(2).replace('.', ','));
+    setValorStr(toCurrencyMask(total));
     if (!descricao.trim()) setDescricao(desc);
     setSplitMode('custom');
     setShowScanner(false);
@@ -96,7 +125,7 @@ export default function NovaDespesaScreen() {
   const divisoesCustom = useMemo(() => {
     return participantes.map((p) => ({
       participanteId: p.id,
-      valorDevido: parseFloat((customShares[p.id] ?? '0').replace(',', '.')) || 0,
+      valorDevido: parseCurrencyMask(customShares[p.id] ?? ''),
     }));
   }, [participantes, customShares]);
 
@@ -204,10 +233,10 @@ export default function NovaDespesaScreen() {
             },
           ]}
           value={valorStr}
-          onChangeText={setValorStr}
+          onChangeText={(v) => setValorStr(formatCurrencyInput(v))}
           placeholder="0,00"
           placeholderTextColor={colors.mutedForeground}
-          keyboardType="decimal-pad"
+          keyboardType="number-pad"
           returnKeyType="next"
         />
       </View>
@@ -384,11 +413,11 @@ export default function NovaDespesaScreen() {
                   ]}
                   value={customShares[p.id] ?? ''}
                   onChangeText={(v) =>
-                    setCustomShares((prev) => ({ ...prev, [p.id]: v }))
+                    setCustomShares((prev) => ({ ...prev, [p.id]: formatCurrencyInput(v) }))
                   }
                   placeholder="0,00"
                   placeholderTextColor={colors.mutedForeground}
-                  keyboardType="decimal-pad"
+                  keyboardType="number-pad"
                 />
               </View>
             ))}

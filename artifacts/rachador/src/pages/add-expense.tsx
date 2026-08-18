@@ -17,6 +17,35 @@ import { ArrowLeft, Calculator, Users, UserCheck, Check, ScanLine } from "lucide
 
 type SplitMode = "equal" | "select" | "custom"
 
+/** Converte dígitos brutos em formato "1.234,56" (centavos primeiro) */
+function formatCurrencyInput(raw: string): string {
+  const digits = raw.replace(/\D/g, '')
+  if (!digits) return ''
+  const num = parseInt(digits, 10)
+  if (num === 0) return ''
+  const reais = Math.floor(num / 100)
+  const centavos = num % 100
+  const reaisStr = reais > 0 ? reais.toLocaleString('pt-BR') : '0'
+  return `${reaisStr},${centavos.toString().padStart(2, '0')}`
+}
+
+/** Converte valor numérico em string mascarada */
+function toCurrencyMask(value: number): string {
+  const cents = Math.round(value * 100)
+  if (cents === 0) return ''
+  const reais = Math.floor(cents / 100)
+  const centavos = cents % 100
+  const reaisStr = reais > 0 ? reais.toLocaleString('pt-BR') : '0'
+  return `${reaisStr},${centavos.toString().padStart(2, '0')}`
+}
+
+/** Converte "1.234,56" → 1234.56 */
+function parseCurrencyMask(masked: string): number {
+  const digits = masked.replace(/\D/g, '')
+  if (!digits) return 0
+  return parseInt(digits, 10) / 100
+}
+
 export default function AddExpense() {
   const { grupoId: idStr } = useParams()
   const grupoId = Number(idStr)
@@ -43,7 +72,7 @@ export default function AddExpense() {
   // For custom split
   const [customSplits, setCustomSplits] = useState<Record<number, string>>({})
 
-  const valor = parseFloat(valorStr.replace(',', '.')) || 0
+  const valor = parseCurrencyMask(valorStr)
 
   // Initialize selectedIds once grupo loads
   if (grupo && !selectedInitialized) {
@@ -75,10 +104,10 @@ export default function AddExpense() {
   const handleReceiptApply = (splits: Record<number, number>, total: number, desc: string) => {
     setCustomSplits(
       Object.fromEntries(
-        Object.entries(splits).map(([id, v]) => [id, v.toFixed(2)])
+        Object.entries(splits).map(([id, v]) => [id, toCurrencyMask(v)])
       )
     )
-    setValorStr(total.toFixed(2))
+    setValorStr(toCurrencyMask(total))
     if (!descricao) setDescricao(desc)
     setSplitMode("custom")
     setShowScanner(false)
@@ -127,7 +156,7 @@ export default function AddExpense() {
     } else {
       let sum = 0
       divisoes = grupo!.participantes.map(p => {
-        const v = parseFloat(customSplits[p.id]?.replace(',', '.') || "0")
+        const v = parseCurrencyMask(customSplits[p.id] || '')
         sum += v
         return { participanteId: p.id, valorDevido: v }
       })
@@ -190,12 +219,12 @@ export default function AddExpense() {
               <div className="space-y-2">
                 <Label>Valor Total (R$)</Label>
                 <Input
-                  type="number"
-                  step="0.01"
-                  placeholder="0.00"
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="0,00"
                   className="h-14 text-2xl font-bold"
                   value={valorStr}
-                  onChange={e => setValorStr(e.target.value)}
+                  onChange={e => setValorStr(formatCurrencyInput(e.target.value))}
                 />
               </div>
               <div className="space-y-2">
@@ -324,18 +353,18 @@ export default function AddExpense() {
                       <div className="relative w-1/2">
                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">R$</span>
                         <Input
-                          type="number"
-                          step="0.01"
+                          type="text"
+                          inputMode="numeric"
                           className="pl-8 text-right font-medium"
-                          placeholder="0.00"
+                          placeholder="0,00"
                           value={customSplits[p.id] || ""}
-                          onChange={e => handleCustomSplitChange(p.id, e.target.value)}
+                          onChange={e => handleCustomSplitChange(p.id, formatCurrencyInput(e.target.value))}
                         />
                       </div>
                     </div>
                   ))}
                   <div className="text-right text-xs text-muted-foreground pt-2">
-                    Total distribuído: R$ {Object.values(customSplits).reduce((sum, v) => sum + (parseFloat(v.replace(',', '.')) || 0), 0).toFixed(2)} / {valor.toFixed(2)}
+                    Total distribuído: R$ {Object.values(customSplits).reduce((sum, v) => sum + parseCurrencyMask(v), 0).toFixed(2)} / {valor.toFixed(2)}
                   </div>
                 </div>
               </div>
