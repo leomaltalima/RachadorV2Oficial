@@ -117,77 +117,51 @@ export default function SaldosScreen() {
             </Text>
           </View>
 
-          {/* Per-participant net balance */}
-          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Saldo por pessoa</Text>
-          {participantesSaldo.map((ps) => {
-            const isPositive = ps.saldoLiquido >= 0;
-            const isCurrentUser = ps.participanteId === currentParticipanteId;
-            return (
-              <View
-                key={ps.participanteId}
-                style={[
-                  styles.balanceItem,
-                  {
-                    backgroundColor: colors.card,
-                    borderColor: isCurrentUser ? colors.primary : colors.border,
-                    borderWidth: isCurrentUser ? 2 : 1,
-                  },
-                ]}
-              >
-                <View style={[styles.balanceAvatar, { backgroundColor: colors.secondary }]}>
-                  <Text style={[styles.balanceAvatarText, { color: colors.foreground }]}>
-                    {ps.nome.charAt(0).toUpperCase()}
-                  </Text>
-                </View>
-                <Text style={[styles.balanceName, { color: colors.foreground }]}>
-                  {ps.nome}
-                  {isCurrentUser ? ' (você)' : ''}
-                </Text>
-                <Text
-                  style={[
-                    styles.balanceValue,
-                    { color: isPositive ? colors.success : colors.destructive },
-                  ]}
-                >
-                  {isPositive ? '+' : ''}
-                  {formatCurrency(ps.saldoLiquido)}
-                </Text>
-              </View>
-            );
-          })}
-
           {debitos.length > 0 && (
             <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Quem deve a quem</Text>
           )}
         </View>
       }
-      renderItem={({ item: debito }) => (
-        <View style={[styles.debitoItem, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <View style={{ flex: 1 }}>
-            <View style={styles.debitoRow}>
-              <Text style={[styles.debitoNome, { color: colors.foreground }]}>
-                {getNome(debito.deId)}
-              </Text>
-              <Ionicons name="arrow-forward" size={16} color={colors.mutedForeground} />
-              <Text style={[styles.debitoNome, { color: colors.foreground }]}>
-                {getNome(debito.paraId)}
+      renderItem={({ item: debito }) => {
+        const isMyDebt = debito.deId === currentParticipanteId;
+        return (
+          <View style={[
+            styles.debitoItem,
+            {
+              backgroundColor: colors.card,
+              borderColor: isMyDebt ? colors.destructive : colors.border,
+              borderWidth: isMyDebt ? 1.5 : 1,
+            },
+          ]}>
+            <View style={{ flex: 1 }}>
+              <View style={styles.debitoRow}>
+                <Text style={[styles.debitoNome, { color: isMyDebt ? colors.destructive : colors.foreground }]}>
+                  {getNome(debito.deId)}
+                  {isMyDebt ? ' (você)' : ''}
+                </Text>
+                <Ionicons name="arrow-forward" size={16} color={colors.mutedForeground} />
+                <Text style={[styles.debitoNome, { color: colors.foreground }]}>
+                  {getNome(debito.paraId)}
+                </Text>
+              </View>
+              <Text style={[styles.debitoValor, { color: colors.destructive }]}>
+                {formatCurrency(debito.valor)}
               </Text>
             </View>
-            <Text style={[styles.debitoValor, { color: colors.destructive }]}>
-              {formatCurrency(debito.valor)}
-            </Text>
+            {isMyDebt ? (
+              <Pressable
+                style={({ pressed }) => [
+                  styles.pagar,
+                  { backgroundColor: colors.success, opacity: pressed ? 0.8 : 1 },
+                ]}
+                onPress={() => handlePagar(debito)}
+              >
+                <Text style={[styles.pagarText, { color: colors.successForeground }]}>Pagar</Text>
+              </Pressable>
+            ) : null}
           </View>
-          <Pressable
-            style={({ pressed }) => [
-              styles.pagar,
-              { backgroundColor: colors.success, opacity: pressed ? 0.8 : 1 },
-            ]}
-            onPress={() => handlePagar(debito)}
-          >
-            <Text style={[styles.pagarText, { color: colors.successForeground }]}>Pagar</Text>
-          </Pressable>
-        </View>
-      )}
+        );
+      }}
       ListEmptyComponent={
         debitos.length === 0 && participantesSaldo.length > 0 ? (
           <View style={styles.settledState}>
@@ -207,6 +181,49 @@ export default function SaldosScreen() {
           </View>
         ) : null
       }
+      ListFooterComponent={
+        participantesSaldo.length > 0 ? (
+          <View style={[styles.footerSection, { marginTop: debitos.length > 0 ? 16 : 0 }]}>
+            <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Saldo por pessoa</Text>
+            {participantesSaldo.map((ps) => {
+              const isPositive = ps.saldoLiquido >= 0;
+              const isCurrentUser = ps.participanteId === currentParticipanteId;
+              return (
+                <View
+                  key={ps.participanteId}
+                  style={[
+                    styles.balanceItem,
+                    {
+                      backgroundColor: colors.card,
+                      borderColor: isCurrentUser ? colors.primary : colors.border,
+                      borderWidth: isCurrentUser ? 2 : 1,
+                    },
+                  ]}
+                >
+                  <View style={[styles.balanceAvatar, { backgroundColor: colors.secondary }]}>
+                    <Text style={[styles.balanceAvatarText, { color: colors.foreground }]}>
+                      {ps.nome.charAt(0).toUpperCase()}
+                    </Text>
+                  </View>
+                  <Text style={[styles.balanceName, { color: colors.foreground }]}>
+                    {ps.nome}
+                    {isCurrentUser ? ' (você)' : ''}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.balanceValue,
+                      { color: isPositive ? colors.success : colors.destructive },
+                    ]}
+                  >
+                    {isPositive ? '+' : ''}
+                    {formatCurrency(ps.saldoLiquido)}
+                  </Text>
+                </View>
+              );
+            })}
+          </View>
+        ) : null
+      }
     />
   );
 }
@@ -222,6 +239,10 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   headerSection: {
+    gap: 10,
+    marginBottom: 8,
+  },
+  footerSection: {
     gap: 10,
     marginBottom: 8,
   },

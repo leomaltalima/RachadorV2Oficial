@@ -472,29 +472,37 @@ export default function GroupDashboard() {
                 <div className="space-y-3">
                   {saldo?.debitos.map((debito, i) => {
                     const pix = getParticipantPix(debito.paraId)
+                    const isMyDebt = debito.deId === myParticipantId
                     return (
-                      <Card key={i} className="overflow-hidden border-border/60">
+                      <Card key={i} className={`overflow-hidden ${isMyDebt ? "border-destructive/50 ring-1 ring-destructive/20" : "border-border/60"}`}>
                         <div className="p-4 flex flex-col gap-3">
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2">
-                              <span className="font-bold text-foreground">{getParticipantName(debito.deId)}</span>
+                              <span className={`font-bold ${isMyDebt ? "text-destructive" : "text-foreground"}`}>
+                                {getParticipantName(debito.deId)}
+                                {isMyDebt && <span className="text-xs font-normal text-destructive/70 ml-1">(você)</span>}
+                              </span>
                               <ArrowRight className="w-4 h-4 text-muted-foreground" />
                               <span className="font-bold text-foreground">{getParticipantName(debito.paraId)}</span>
                             </div>
                             <span className="font-bold text-destructive">{formatCurrency(debito.valor)}</span>
                           </div>
-                          <div className="flex items-center gap-2 pt-2 border-t border-border/50">
-                            <Button size="sm" variant="default" className="w-full text-xs font-bold"
-                              onClick={() => handleOpenPayDialog(debito.deId, debito.paraId, debito.valor)}>
-                              Marcar como pago
-                            </Button>
-                            {pix && (
-                              <Button size="sm" variant="outline" className="w-full text-xs gap-1.5"
-                                onClick={() => handleCopyPix(pix)}>
-                                Copiar Pix <Copy className="w-3 h-3" />
-                              </Button>
-                            )}
-                          </div>
+                          {(isMyDebt || pix) && (
+                            <div className="flex items-center gap-2 pt-2 border-t border-border/50">
+                              {isMyDebt && (
+                                <Button size="sm" variant="default" className="w-full text-xs font-bold"
+                                  onClick={() => handleOpenPayDialog(debito.deId, debito.paraId, debito.valor)}>
+                                  Marcar como pago
+                                </Button>
+                              )}
+                              {pix && (
+                                <Button size="sm" variant="outline" className="w-full text-xs gap-1.5"
+                                  onClick={() => handleCopyPix(pix)}>
+                                  Copiar Pix <Copy className="w-3 h-3" />
+                                </Button>
+                              )}
+                            </div>
+                          )}
                         </div>
                       </Card>
                     )
