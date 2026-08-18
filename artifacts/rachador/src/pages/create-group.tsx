@@ -6,6 +6,7 @@ import { z } from "zod"
 import { useCreateGrupo } from "@workspace/api-client-react"
 import { useQuery } from "@tanstack/react-query"
 import { getSession, setSession } from "@/lib/session"
+import { useAuth } from "@clerk/react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -31,6 +32,7 @@ const formSchema = z.object({
 export default function CreateGroup() {
   const [, setLocation] = useLocation()
   const createGrupo = useCreateGrupo()
+  const { isSignedIn } = useAuth()
 
   const { data: meusGrupos, isLoading: loadingGrupos } = useQuery<MeuGrupo[]>({
     queryKey: ["me/grupos"],
@@ -69,8 +71,22 @@ export default function CreateGroup() {
         }))
       }
     }, {
-      onSuccess: (grupo) => {
-        setLocation(`/g/${grupo.id}/entrar`)
+      onSuccess: async (grupoRaw) => {
+        const grupo = grupoRaw as typeof grupoRaw & { participantes: { id: number }[] }
+        const meuId = grupo.participantes[0]?.id
+        if (meuId) {
+          setSession(grupo.id, meuId)
+          // Claim participant for the logged-in Clerk account (non-critical)
+          if (isSignedIn) {
+            try {
+              await fetch(`/api/participantes/${meuId}/claim`, {
+                method: "POST",
+                credentials: "include",
+              })
+            } catch {}
+          }
+        }
+        setLocation(`/g/${grupo.id}`)
       }
     })
   }
@@ -159,7 +175,12 @@ export default function CreateGroup() {
               
               <div className="space-y-3">
                 {fields.map((field, index) => (
-                  <Card key={field.id} className="border-border/50 shadow-sm relative overflow-hidden group">
+                  <Card key={field.id} className={`border-border/50 shadow-sm relative overflow-hidden group ${index === 0 ? "border-primary/40 ring-1 ring-primary/20" : ""}`}>
+                    {index === 0 && (
+                      <div className="px-4 pt-4 pb-0 flex items-center gap-2">
+                        <span className="text-xs font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-full">Você — líder do grupo</span>
+                      </div>
+                    )}
                     {index > 0 && (
                       <Button
                         type="button"

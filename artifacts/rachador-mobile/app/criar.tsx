@@ -96,8 +96,23 @@ export default function CriarGrupoScreen() {
             chavePix: p.pix.trim() || null,
           })),
         },
-      });
-      router.replace(`/grupo/${grupo.id}/entrar`);
+      }) as typeof grupo & { participantes: { id: number }[] };
+
+      // First participant is the creator — set session automatically
+      const meuId = grupo.participantes[0]?.id;
+      if (meuId) {
+        await setSession(grupo.id, meuId);
+        // Claim the participant for the current Clerk account (non-critical)
+        try {
+          const token = await getToken();
+          await fetch(`https://${process.env.EXPO_PUBLIC_DOMAIN}/api/participantes/${meuId}/claim`, {
+            method: 'POST',
+            headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+          });
+        } catch {}
+      }
+
+      router.replace(`/grupo/${grupo.id}/despesas`);
     } catch {
       Alert.alert('Erro', 'Não foi possível criar o grupo. Tente novamente.');
     }
@@ -182,12 +197,25 @@ export default function CriarGrupoScreen() {
         {participantes.map((p, index) => (
           <View
             key={p.id}
-            style={[styles.participanteCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+            style={[
+              styles.participanteCard,
+              {
+                backgroundColor: colors.card,
+                borderColor: index === 0 ? colors.primary : colors.border,
+                borderWidth: index === 0 ? 1.5 : 1,
+              },
+            ]}
           >
             <View style={styles.participanteHeader}>
-              <Text style={[styles.participanteIndex, { color: colors.mutedForeground }]}>
-                {index + 1}
-              </Text>
+              {index === 0 ? (
+                <View style={[styles.liderBadge, { backgroundColor: colors.primary + '18' }]}>
+                  <Text style={[styles.liderBadgeText, { color: colors.primary }]}>Você — líder do grupo</Text>
+                </View>
+              ) : (
+                <Text style={[styles.participanteIndex, { color: colors.mutedForeground }]}>
+                  {index + 1}
+                </Text>
+              )}
               {participantes.length > 1 && (
                 <Pressable
                   onPress={() => removeParticipante(p.id)}
@@ -308,6 +336,16 @@ const styles = StyleSheet.create({
   participanteIndex: {
     fontFamily: 'PlusJakartaSans_600SemiBold',
     fontSize: 12,
+  },
+  liderBadge: {
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    alignSelf: 'flex-start',
+  },
+  liderBadgeText: {
+    fontFamily: 'PlusJakartaSans_700Bold',
+    fontSize: 11,
   },
   removeButton: {
     padding: 2,
