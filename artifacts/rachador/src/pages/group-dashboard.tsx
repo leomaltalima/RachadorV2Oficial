@@ -435,9 +435,11 @@ export default function GroupDashboard() {
                         <div className="font-bold text-foreground">{formatCurrency(despesa.valor)}</div>
                         <div className="text-xs text-muted-foreground">{formatDate(despesa.criadoEm)}</div>
                       </div>
-                      <Button variant="ghost" size="icon" className="shrink-0 -mr-2 text-muted-foreground hover:text-destructive" onClick={() => handleDeleteDespesa(despesa.id)}>
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
+                      {isCreator && (
+                        <Button variant="ghost" size="icon" className="shrink-0 -mr-2 text-muted-foreground hover:text-destructive" onClick={() => handleDeleteDespesa(despesa.id)}>
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      )}
                     </div>
                   </Card>
                 ))}

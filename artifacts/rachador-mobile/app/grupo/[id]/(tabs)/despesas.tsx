@@ -15,6 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons, Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useQueryClient } from '@tanstack/react-query';
+import { useAuth } from '@clerk/expo';
 import { useColors } from '@/hooks/useColors';
 import { useSession } from '@/context/SessionContext';
 import {
@@ -39,11 +40,13 @@ function ExpenseItem({
   item,
   participantes,
   onDelete,
+  isLeader,
   colors,
 }: {
   item: DespesaComDivisoes;
   participantes: { id: number; nome: string }[];
   onDelete: (id: number) => void;
+  isLeader: boolean;
   colors: ReturnType<typeof import('@/hooks/useColors').useColors>;
 }) {
   const pagador = participantes.find((p) => p.id === item.pagoPorId);
@@ -65,13 +68,15 @@ function ExpenseItem({
         <Text style={[styles.expenseAmount, { color: colors.foreground }]}>
           {formatCurrency(item.valor)}
         </Text>
-        <Pressable
-          onPress={() => onDelete(item.id)}
-          style={({ pressed }) => [styles.deleteButton, { opacity: pressed ? 0.6 : 1 }]}
-          testID={`delete-expense-${item.id}`}
-        >
-          <Feather name="trash-2" size={16} color={colors.mutedForeground} />
-        </Pressable>
+        {isLeader && (
+          <Pressable
+            onPress={() => onDelete(item.id)}
+            style={({ pressed }) => [styles.deleteButton, { opacity: pressed ? 0.6 : 1 }]}
+            testID={`delete-expense-${item.id}`}
+          >
+            <Feather name="trash-2" size={16} color={colors.mutedForeground} />
+          </Pressable>
+        )}
       </View>
     </View>
   );
@@ -94,8 +99,11 @@ export default function DespesasScreen() {
   } = useListDespesas(grupoId);
   const deleteDespesa = useDeleteDespesa();
 
+  const { userId } = useAuth();
   const currentParticipanteId = getSession(grupoId);
   const participantes = grupo?.participantes ?? [];
+  const grupoExtended = grupo as typeof grupo & { criadorClerkUserId?: string | null };
+  const isLeader = !!userId && !!grupoExtended?.criadorClerkUserId && userId === grupoExtended.criadorClerkUserId;
 
   const totalGasto = (despesas ?? []).reduce((sum, d) => sum + d.valor, 0);
 
@@ -158,6 +166,7 @@ export default function DespesasScreen() {
               item={item}
               participantes={participantes}
               onDelete={handleDelete}
+              isLeader={isLeader}
               colors={colors}
             />
           )}
