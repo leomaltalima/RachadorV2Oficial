@@ -75,12 +75,24 @@ export function ReceiptScanner({ participantes, onApply, onClose }: ReceiptScann
     }
   }
 
-  // Quantas unidades de um item já foram atribuídas (a todos, exceto opcionalmente uma pessoa)
-  const assignedForItem = (itemIdx: number, excludePersonId?: number): number => {
-    return participantes.reduce((sum, p) => {
+  // Quantas pessoas estão compartilhando um item de unidade única
+  const sharersOfItem = (itemIdx: number): number =>
+    participantes.filter(p => (assignments[p.id]?.[itemIdx] ?? 0) > 0).length
+
+  // Quantas unidades de um item de múltiplas unidades já foram atribuídas (excluindo opcionalmente uma pessoa)
+  const assignedForItem = (itemIdx: number, excludePersonId?: number): number =>
+    participantes.reduce((sum, p) => {
       if (p.id === excludePersonId) return sum
       return sum + (assignments[p.id]?.[itemIdx] ?? 0)
     }, 0)
+
+  // Para itens de unidade única: apenas alterna 0/1 sem restrição de capacidade (compartilhamento)
+  const toggleItem = (participanteId: number, itemIdx: number) => {
+    const current = assignments[participanteId]?.[itemIdx] ?? 0
+    setAssignments(prev => ({
+      ...prev,
+      [participanteId]: { ...(prev[participanteId] ?? {}), [itemIdx]: current > 0 ? 0 : 1 },
+    }))
   }
 
   const setQty = (participanteId: number, itemIdx: number, delta: number) => {
@@ -97,20 +109,17 @@ export function ReceiptScanner({ participantes, onApply, onClose }: ReceiptScann
     })
   }
 
-  const toggleItem = (participanteId: number, itemIdx: number) => {
-    const current = assignments[participanteId]?.[itemIdx] ?? 0
-    if (current > 0) {
-      setQty(participanteId, itemIdx, -current)
-    } else {
-      setQty(participanteId, itemIdx, +1)
-    }
-  }
-
-  // Subtotal de itens por pessoa
+  // Subtotal de itens por pessoa.
+  // Itens de unidade única compartilhados entre N pessoas: cada um paga preço/N.
   const personSubtotal = (participanteId: number): number => {
     if (!receipt) return 0
     return receipt.itens.reduce((sum, item, idx) => {
       const qty = assignments[participanteId]?.[idx] ?? 0
+      if (qty === 0) return sum
+      if (item.quantidade === 1) {
+        const sharers = sharersOfItem(idx)
+        return sum + item.precoUnitario / (sharers || 1)
+      }
       return sum + qty * item.precoUnitario
     }, 0)
   }
@@ -270,6 +279,11 @@ export function ReceiptScanner({ participantes, onApply, onClose }: ReceiptScann
                     const maxForMe = totalAvail - usedByOthers
                     const isSingleUnit = totalAvail === 1
 
+                    const sharers = isSingleUnit ? sharersOfItem(idx) : 0
+                    const myShare = isSingleUnit && isSelected
+                      ? item.precoUnitario / (sharers || 1)
+                      : qty * item.precoUnitario
+
                     return (
                       <div key={idx} className={`flex items-center gap-3 px-4 py-3 transition-colors ${isSelected ? "bg-primary/5" : ""}`}>
                         {/* Checkbox / toggle for single-unit items */}
@@ -277,13 +291,10 @@ export function ReceiptScanner({ participantes, onApply, onClose }: ReceiptScann
                           <button
                             type="button"
                             onClick={() => toggleItem(p.id, idx)}
-                            disabled={!isSelected && maxForMe === 0}
                             className={`w-6 h-6 rounded-md border-2 flex items-center justify-center shrink-0 transition-colors ${
                               isSelected
                                 ? "bg-primary border-primary"
-                                : maxForMe === 0
-                                  ? "border-border/40 opacity-40 cursor-not-allowed"
-                                  : "border-border hover:border-primary/60"
+                                : "border-border hover:border-primary/60"
                             }`}
                           >
                             {isSelected && <Check className="w-3.5 h-3.5 text-primary-foreground" />}
@@ -312,12 +323,24 @@ export function ReceiptScanner({ participantes, onApply, onClose }: ReceiptScann
                         )}
 
                         <div className="flex-1 min-w-0">
-                          <p className={`text-sm font-medium truncate ${isSelected ? "text-foreground" : "text-muted-foreground"}`}>
-                            {item.nome}
-                          </p>
+                          <div className="flex items-center gap-1.5">
+                            <p className={`text-sm font-medium truncate ${isSelected ? "text-foreground" : "text-muted-foreground"}`}>
+                              {item.nome}
+                            </p>
+                            {isSingleUnit && sharers > 1 && (
+                              <span className="shrink-0 text-[10px] font-bold bg-primary/15 text-primary rounded px-1 py-0.5 tabular-nums">
+                                ÷{sharers}
+                              </span>
+                            )}
+                          </div>
                           {!isSingleUnit && (
                             <p className="text-xs text-muted-foreground">
                               {formatCurrency(item.precoUnitario)} cada · {maxForMe} disponível{maxForMe !== 1 ? "is" : ""}
+                            </p>
+                          )}
+                          {isSingleUnit && isSelected && sharers > 1 && (
+                            <p className="text-xs text-muted-foreground">
+                              {formatCurrency(item.precoUnitario)} ÷ {sharers} pessoas
                             </p>
                           )}
                         </div>
@@ -325,11 +348,11 @@ export function ReceiptScanner({ participantes, onApply, onClose }: ReceiptScann
                         <div className="text-right shrink-0">
                           {isSelected ? (
                             <p className="text-sm font-bold text-foreground tabular-nums">
-                              {formatCurrency(qty * item.precoUnitario)}
+                              {formatCurrency(myShare)}
                             </p>
                           ) : (
                             <p className="text-sm text-muted-foreground tabular-nums">
-                              {formatCurrency(isSingleUnit ? item.precoUnitario : item.precoUnitario)}
+                              {formatCurrency(item.precoUnitario)}
                             </p>
                           )}
                         </div>

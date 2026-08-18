@@ -103,11 +103,25 @@ export function ReceiptScanner({ participantes, onApply, onClose }: ReceiptScann
     }
   };
 
+  // Quantas pessoas estão compartilhando um item de unidade única
+  const sharersOfItem = (itemIdx: number): number =>
+    participantes.filter((p) => (assignments[p.id]?.[itemIdx] ?? 0) > 0).length;
+
+  // Quantas unidades de um item de múltiplas unidades já foram atribuídas (excluindo opcionalmente uma pessoa)
   const assignedForItem = (itemIdx: number, excludePersonId?: number): number =>
     participantes.reduce((sum, p) => {
       if (p.id === excludePersonId) return sum;
       return sum + (assignments[p.id]?.[itemIdx] ?? 0);
     }, 0);
+
+  // Para itens de unidade única: apenas alterna 0/1 sem restrição de capacidade (compartilhamento)
+  const toggleItem = (participanteId: number, itemIdx: number) => {
+    const current = assignments[participanteId]?.[itemIdx] ?? 0;
+    setAssignments((prev) => ({
+      ...prev,
+      [participanteId]: { ...(prev[participanteId] ?? {}), [itemIdx]: current > 0 ? 0 : 1 },
+    }));
+  };
 
   const setQty = (participanteId: number, itemIdx: number, delta: number) => {
     setAssignments((prev) => {
@@ -120,15 +134,17 @@ export function ReceiptScanner({ participantes, onApply, onClose }: ReceiptScann
     });
   };
 
-  const toggleItem = (participanteId: number, itemIdx: number) => {
-    const current = assignments[participanteId]?.[itemIdx] ?? 0;
-    setQty(participanteId, itemIdx, current > 0 ? -current : +1);
-  };
-
+  // Subtotal de itens por pessoa.
+  // Itens de unidade única compartilhados entre N pessoas: cada um paga preço/N.
   const personSubtotal = (participanteId: number): number => {
     if (!receipt) return 0;
     return receipt.itens.reduce((sum, item, idx) => {
       const qty = assignments[participanteId]?.[idx] ?? 0;
+      if (qty === 0) return sum;
+      if (item.quantidade === 1) {
+        const sharers = sharersOfItem(idx);
+        return sum + item.precoUnitario / (sharers || 1);
+      }
       return sum + qty * item.precoUnitario;
     }, 0);
   };
@@ -266,19 +282,22 @@ export function ReceiptScanner({ participantes, onApply, onClose }: ReceiptScann
                           const maxForMe = item.quantidade - usedByOthers;
                           const isSingleUnit = item.quantidade === 1;
 
+                          const sharers = isSingleUnit ? sharersOfItem(idx) : 0;
+                          const myShare = isSingleUnit && isSelected
+                            ? item.precoUnitario / (sharers || 1)
+                            : qty * item.precoUnitario;
+
                           return (
                             <View key={idx} style={[s.itemRow, { borderColor: colors.border, backgroundColor: isSelected ? colors.primary + '0A' : 'transparent' }]}>
                               {/* Toggle / stepper */}
                               {isSingleUnit ? (
                                 <Pressable
                                   onPress={() => toggleItem(p.id, idx)}
-                                  disabled={!isSelected && maxForMe === 0}
                                   style={[
                                     s.checkbox,
                                     {
                                       borderColor: isSelected ? colors.primary : colors.border,
                                       backgroundColor: isSelected ? colors.primary : 'transparent',
-                                      opacity: !isSelected && maxForMe === 0 ? 0.35 : 1,
                                     },
                                   ]}
                                 >
@@ -305,18 +324,30 @@ export function ReceiptScanner({ participantes, onApply, onClose }: ReceiptScann
                               )}
 
                               <View style={{ flex: 1 }}>
-                                <Text style={[s.itemName, { color: isSelected ? colors.foreground : colors.mutedForeground }]} numberOfLines={1}>
-                                  {item.nome}
-                                </Text>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                                  <Text style={[s.itemName, { color: isSelected ? colors.foreground : colors.mutedForeground }]} numberOfLines={1}>
+                                    {item.nome}
+                                  </Text>
+                                  {isSingleUnit && sharers > 1 && (
+                                    <View style={[s.sharerBadge, { backgroundColor: colors.primary + '22' }]}>
+                                      <Text style={[s.sharerBadgeText, { color: colors.primary }]}>÷{sharers}</Text>
+                                    </View>
+                                  )}
+                                </View>
                                 {!isSingleUnit && (
                                   <Text style={[s.itemSub, { color: colors.mutedForeground }]}>
                                     R$ {item.precoUnitario.toFixed(2)} cada · {maxForMe} disponível{maxForMe !== 1 ? 'is' : ''}
                                   </Text>
                                 )}
+                                {isSingleUnit && isSelected && sharers > 1 && (
+                                  <Text style={[s.itemSub, { color: colors.mutedForeground }]}>
+                                    R$ {item.precoUnitario.toFixed(2)} ÷ {sharers} pessoas
+                                  </Text>
+                                )}
                               </View>
 
                               <Text style={[s.itemPrice, { color: isSelected ? colors.foreground : colors.mutedForeground }]}>
-                                R$ {(isSingleUnit ? item.precoUnitario : qty * item.precoUnitario).toFixed(2)}
+                                R$ {myShare.toFixed(2)}
                               </Text>
                             </View>
                           );
@@ -438,6 +469,8 @@ function makeStyles(colors: ReturnType<typeof import('@/hooks/useColors').useCol
     itemName: { fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 13 },
     itemSub: { fontFamily: 'PlusJakartaSans_400Regular', fontSize: 11, marginTop: 1 },
     itemPrice: { fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 13 },
+    sharerBadge: { borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 },
+    sharerBadgeText: { fontFamily: 'PlusJakartaSans_700Bold', fontSize: 10 },
 
     taxaCard: { borderRadius: 14, borderWidth: 1.5, padding: 14, gap: 8 },
     taxaTitle: { fontFamily: 'PlusJakartaSans_700Bold', fontSize: 14 },
