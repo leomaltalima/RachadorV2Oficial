@@ -120,16 +120,30 @@ function ParticipantesModal({ grupoId, visible, onClose }: { grupoId: number; vi
                     )}
                   </View>
                   <Text style={[s.pSub, { color: colors.mutedForeground }]} numberOfLines={1}>
-                    {locked
-                      ? 'Vinculado a uma conta'
-                      : isMe
-                      ? 'Sua conta'
+                    {isMe
+                      ? p.chavePix
+                        ? `Pix: ${p.chavePix}`
+                        : 'Sua conta'
                       : p.chavePix
                       ? `Pix: ${p.chavePix}`
+                      : locked
+                      ? 'Vinculado a uma conta'
                       : 'Sem chave Pix'}
                   </Text>
                 </View>
-                {locked && <Ionicons name="lock-closed-outline" size={15} color={colors.mutedForeground} />}
+                {p.chavePix && !isMe && (
+                  <Pressable
+                    onPress={async () => {
+                      await Clipboard.setStringAsync(p.chavePix!);
+                      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                      Alert.alert('Copiado!', `Chave Pix de ${p.nome} copiada.`);
+                    }}
+                    style={({ pressed }) => [s.pixCopyBtn, { backgroundColor: colors.primary + '18', opacity: pressed ? 0.7 : 1 }]}
+                  >
+                    <Ionicons name="copy-outline" size={16} color={colors.primary} />
+                  </Pressable>
+                )}
+                {locked && !p.chavePix && <Ionicons name="lock-closed-outline" size={15} color={colors.mutedForeground} />}
               </View>
             );
           })}
@@ -444,6 +458,13 @@ const s = StyleSheet.create({
   addBtnText: {
     fontFamily: 'PlusJakartaSans_500Medium',
     fontSize: 14,
+  },
+  pixCopyBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   form: {
     borderRadius: 12,

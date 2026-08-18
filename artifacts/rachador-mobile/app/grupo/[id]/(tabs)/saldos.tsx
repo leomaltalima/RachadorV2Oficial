@@ -1,15 +1,18 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
   FlatList,
+  Modal,
   Platform,
   Pressable,
   RefreshControl,
+  ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
+import * as Clipboard from 'expo-clipboard';
 import { useGlobalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -44,41 +47,32 @@ export default function SaldosScreen() {
 
   const participantes = grupo?.participantes ?? [];
   const currentParticipanteId = getSession(grupoId);
+  const [pagarDebito, setPagarDebito] = useState<DebitoItem | null>(null);
 
   const getNome = (id: number) => participantes.find((p) => p.id === id)?.nome ?? '?';
+  const getChavePix = (id: number) => participantes.find((p) => p.id === id)?.chavePix ?? null;
 
-  const handlePagar = (debito: DebitoItem) => {
-    const deNome = getNome(debito.deId);
-    const paraNome = getNome(debito.paraId);
+  const handlePagar = (debito: DebitoItem) => setPagarDebito(debito);
 
-    Alert.alert(
-      'Confirmar pagamento',
-      `${deNome} pagou ${formatCurrency(debito.valor)} para ${paraNome}?`,
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Confirmar',
-          onPress: async () => {
-            await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-            try {
-              await createPagamento.mutateAsync({
-                grupoId,
-                data: {
-                  deId: debito.deId,
-                  paraId: debito.paraId,
-                  valor: debito.valor,
-                  comprovante: null,
-                },
-              });
-              queryClient.invalidateQueries({ queryKey: getGetSaldoQueryKey(grupoId) });
-              queryClient.invalidateQueries({ queryKey: getListPagamentosQueryKey(grupoId) });
-            } catch {
-              Alert.alert('Erro', 'Não foi possível registrar o pagamento.');
-            }
-          },
+  const handleConfirmarPagamento = async () => {
+    if (!pagarDebito) return;
+    await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    try {
+      await createPagamento.mutateAsync({
+        grupoId,
+        data: {
+          deId: pagarDebito.deId,
+          paraId: pagarDebito.paraId,
+          valor: pagarDebito.valor,
+          comprovante: null,
         },
-      ],
-    );
+      });
+      queryClient.invalidateQueries({ queryKey: getGetSaldoQueryKey(grupoId) });
+      queryClient.invalidateQueries({ queryKey: getListPagamentosQueryKey(grupoId) });
+      setPagarDebito(null);
+    } catch {
+      Alert.alert('Erro', 'Não foi possível registrar o pagamento.');
+    }
   };
 
   const bottomPad = Platform.OS === 'web' ? 34 + 84 + 16 : insets.bottom + 100;
@@ -96,6 +90,7 @@ export default function SaldosScreen() {
   const totalGasto = saldo?.totalGasto ?? 0;
 
   return (
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
     <FlatList
       style={{ backgroundColor: colors.background }}
       contentContainerStyle={[styles.content, { paddingBottom: bottomPad }]}
@@ -225,6 +220,98 @@ export default function SaldosScreen() {
         ) : null
       }
     />
+
+    {/* Pay confirmation modal */}
+    <Modal
+      visible={pagarDebito !== null}
+      animationType="slide"
+      presentationStyle="pageSheet"
+      onRequestClose={() => setPagarDebito(null)}
+    >
+      <View style={[styles.payModalRoot, { backgroundColor: colors.background }]}>
+        <View style={[styles.payHandle, { backgroundColor: colors.border }]} />
+        <View style={[styles.payModalHeader, { borderBottomColor: colors.border }]}>
+          <Text style={[styles.payModalTitle, { color: colors.foreground }]}>Confirmar pagamento</Text>
+          <Pressable onPress={() => setPagarDebito(null)} style={styles.payCloseBtn}>
+            <Ionicons name="close" size={22} color={colors.mutedForeground} />
+          </Pressable>
+        </View>
+
+        <ScrollView contentContainerStyle={styles.payModalContent}>
+          {pagarDebito && (
+            <>
+              {/* Transfer row */}
+              <View style={styles.payTransferRow}>
+                <Text style={[styles.payTransferName, { color: colors.foreground }]}>
+                  {getNome(pagarDebito.deId)}
+                </Text>
+                <Ionicons name="arrow-forward" size={20} color={colors.mutedForeground} />
+                <Text style={[styles.payTransferName, { color: colors.foreground }]}>
+                  {getNome(pagarDebito.paraId)}
+                </Text>
+              </View>
+
+              {/* Amount */}
+              <Text style={[styles.payAmount, { color: colors.destructive }]}>
+                {formatCurrency(pagarDebito.valor)}
+              </Text>
+
+              {/* Pix key */}
+              {getChavePix(pagarDebito.paraId) && (
+                <View style={[styles.pixBox, { backgroundColor: colors.secondary, borderColor: colors.border }]}>
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text style={[styles.pixLabel, { color: colors.mutedForeground }]}>
+                      Pix de {getNome(pagarDebito.paraId)}
+                    </Text>
+                    <Text style={[styles.pixKey, { color: colors.foreground }]} numberOfLines={1}>
+                      {getChavePix(pagarDebito.paraId)}
+                    </Text>
+                  </View>
+                  <Pressable
+                    onPress={async () => {
+                      await Clipboard.setStringAsync(getChavePix(pagarDebito.paraId)!);
+                      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                      Alert.alert('Copiado!', 'Chave Pix copiada para a área de transferência.');
+                    }}
+                    style={({ pressed }) => [
+                      styles.pixCopyBtn,
+                      { backgroundColor: colors.primary + '1A', opacity: pressed ? 0.7 : 1 },
+                    ]}
+                  >
+                    <Ionicons name="copy-outline" size={18} color={colors.primary} />
+                  </Pressable>
+                </View>
+              )}
+            </>
+          )}
+        </ScrollView>
+
+        {/* Actions */}
+        <View style={[styles.payActions, { borderTopColor: colors.border, paddingBottom: insets.bottom + 16 }]}>
+          <Pressable
+            style={({ pressed }) => [styles.payCancelBtn, { borderColor: colors.border, opacity: pressed ? 0.7 : 1 }]}
+            onPress={() => setPagarDebito(null)}
+          >
+            <Text style={[styles.payCancelText, { color: colors.mutedForeground }]}>Cancelar</Text>
+          </Pressable>
+          <Pressable
+            style={({ pressed }) => [
+              styles.payConfirmBtn,
+              { backgroundColor: colors.success, opacity: createPagamento.isPending || pressed ? 0.8 : 1, flex: 1 },
+            ]}
+            onPress={handleConfirmarPagamento}
+            disabled={createPagamento.isPending}
+          >
+            {createPagamento.isPending ? (
+              <ActivityIndicator color={colors.successForeground} />
+            ) : (
+              <Text style={[styles.payConfirmText, { color: colors.successForeground }]}>Confirmar pagamento</Text>
+            )}
+          </Pressable>
+        </View>
+      </View>
+    </Modal>
+    </View>
   );
 }
 
@@ -351,5 +438,109 @@ const styles = StyleSheet.create({
     fontFamily: 'PlusJakartaSans_400Regular',
     fontSize: 14,
     textAlign: 'center',
+  },
+
+  // Pay modal
+  payModalRoot: {
+    flex: 1,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+  },
+  payHandle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    alignSelf: 'center',
+    marginTop: 10,
+    marginBottom: 4,
+  },
+  payModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+  },
+  payModalTitle: {
+    fontFamily: 'PlusJakartaSans_700Bold',
+    fontSize: 17,
+  },
+  payCloseBtn: {
+    padding: 4,
+  },
+  payModalContent: {
+    padding: 24,
+    gap: 16,
+    alignItems: 'center',
+  },
+  payTransferRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 4,
+  },
+  payTransferName: {
+    fontFamily: 'PlusJakartaSans_700Bold',
+    fontSize: 16,
+  },
+  payAmount: {
+    fontFamily: 'PlusJakartaSans_800ExtraBold',
+    fontSize: 36,
+    marginBottom: 8,
+  },
+  pixBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 14,
+    width: '100%',
+  },
+  pixLabel: {
+    fontFamily: 'PlusJakartaSans_400Regular',
+    fontSize: 11,
+    marginBottom: 2,
+  },
+  pixKey: {
+    fontFamily: 'PlusJakartaSans_600SemiBold',
+    fontSize: 14,
+  },
+  pixCopyBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  payActions: {
+    flexDirection: 'row',
+    gap: 10,
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    borderTopWidth: 1,
+  },
+  payCancelBtn: {
+    height: 50,
+    paddingHorizontal: 18,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  payCancelText: {
+    fontFamily: 'PlusJakartaSans_500Medium',
+    fontSize: 14,
+  },
+  payConfirmBtn: {
+    height: 50,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  payConfirmText: {
+    fontFamily: 'PlusJakartaSans_700Bold',
+    fontSize: 15,
   },
 });
