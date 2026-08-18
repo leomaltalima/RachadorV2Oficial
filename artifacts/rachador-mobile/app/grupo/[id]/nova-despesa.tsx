@@ -23,6 +23,7 @@ import {
   getListDespesasQueryKey,
   getGetSaldoQueryKey,
 } from '@workspace/api-client-react';
+import { ReceiptScanner } from '@/components/ReceiptScanner';
 
 type SplitMode = 'equal' | 'custom';
 
@@ -45,8 +46,21 @@ export default function NovaDespesaScreen() {
   const [pagoPorId, setPagoPorId] = useState<number | null>(currentParticipanteId);
   const [splitMode, setSplitMode] = useState<SplitMode>('equal');
   const [customShares, setCustomShares] = useState<Record<number, string>>({});
+  const [showScanner, setShowScanner] = useState(false);
 
   const valorTotal = parseFloat(valorStr.replace(',', '.')) || 0;
+
+  const handleReceiptApply = (splits: Record<number, number>, total: number, desc: string) => {
+    const newShares: Record<number, string> = {};
+    Object.entries(splits).forEach(([id, val]) => {
+      newShares[Number(id)] = val.toFixed(2).replace('.', ',');
+    });
+    setCustomShares(newShares);
+    setValorStr(total.toFixed(2).replace('.', ','));
+    if (!descricao.trim()) setDescricao(desc);
+    setSplitMode('custom');
+    setShowScanner(false);
+  };
 
   const divisoesIguais = useMemo(() => {
     if (participantes.length === 0 || valorTotal <= 0) return [];
@@ -107,6 +121,13 @@ export default function NovaDespesaScreen() {
       ]}
       keyboardShouldPersistTaps="handled"
     >
+      {showScanner && (
+        <ReceiptScanner
+          participantes={participantes}
+          onApply={handleReceiptApply}
+          onClose={() => setShowScanner(false)}
+        />
+      )}
       {/* Description */}
       <View style={styles.section}>
         <Text style={[styles.label, { color: colors.mutedForeground }]}>DESCRIÇÃO</Text>
@@ -231,6 +252,24 @@ export default function NovaDespesaScreen() {
 
         {splitMode === 'custom' && (
           <View style={styles.customSplitList}>
+            {/* Scanner button */}
+            <Pressable
+              style={({ pressed }) => [
+                styles.scanButton,
+                {
+                  backgroundColor: colors.card,
+                  borderColor: colors.primary,
+                  opacity: pressed ? 0.75 : 1,
+                },
+              ]}
+              onPress={() => setShowScanner(true)}
+            >
+              <Ionicons name="receipt-outline" size={18} color={colors.primary} />
+              <Text style={[styles.scanButtonText, { color: colors.primary }]}>
+                Escanear nota fiscal
+              </Text>
+            </Pressable>
+
             {participantes.map((p) => (
               <View key={p.id} style={styles.customSplitRow}>
                 <Text style={[styles.customSplitNome, { color: colors.foreground, flex: 1 }]}>
@@ -369,6 +408,19 @@ const styles = StyleSheet.create({
   },
   customSplitList: {
     gap: 8,
+  },
+  scanButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    height: 44,
+    borderRadius: 10,
+    borderWidth: 1.5,
+  },
+  scanButtonText: {
+    fontFamily: 'PlusJakartaSans_600SemiBold',
+    fontSize: 14,
   },
   customSplitRow: {
     flexDirection: 'row',

@@ -119,14 +119,10 @@ export function ReceiptScanner({ participantes, onApply, onClose }: ReceiptScann
   const totalSubtotal = allSubtotals.reduce((a, b) => a + b, 0)
   const taxaVal = parseFloat(taxaPercent) || 0
 
-  const personServiceFee = (participanteId: number): number => {
-    const sub = personSubtotal(participanteId)
-    if (totalSubtotal === 0) {
-      return participantes.length > 0
-        ? (taxaVal / 100) * (receipt?.totalSemTaxa ?? 0) / participantes.length
-        : 0
-    }
-    return (sub / totalSubtotal) * (taxaVal / 100) * totalSubtotal
+  const personServiceFee = (_participanteId: number): number => {
+    if (participantes.length === 0 || taxaVal === 0) return 0
+    const base = totalSubtotal > 0 ? totalSubtotal : (receipt?.totalSemTaxa ?? 0)
+    return (taxaVal / 100) * base / participantes.length
   }
 
   const personTotal = (p: number) => personSubtotal(p) + personServiceFee(p)
@@ -350,7 +346,7 @@ export function ReceiptScanner({ participantes, onApply, onClose }: ReceiptScann
         <div className="rounded-2xl border-2 border-border/50 p-4 space-y-3 bg-card">
           <div>
             <p className="text-sm font-semibold">Taxa de serviço</p>
-            <p className="text-xs text-muted-foreground">Dividida proporcionalmente pelo consumo de cada um</p>
+            <p className="text-xs text-muted-foreground">Dividida igualmente entre todas as pessoas</p>
           </div>
           <div className="flex items-center gap-3">
             <div className="relative">
