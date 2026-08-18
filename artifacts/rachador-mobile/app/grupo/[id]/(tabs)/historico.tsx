@@ -16,6 +16,7 @@ import { Ionicons, Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useQueryClient } from '@tanstack/react-query';
 import { useColors } from '@/hooks/useColors';
+import { useSession } from '@/context/SessionContext';
 import {
   useListPagamentos,
   useDeletePagamento,
@@ -42,11 +43,13 @@ function PagamentoItem({
   item,
   participantes,
   onDelete,
+  isReceiver,
   colors,
 }: {
   item: Pagamento;
   participantes: { id: number; nome: string }[];
   onDelete: (id: number) => void;
+  isReceiver: boolean;
   colors: ReturnType<typeof import('@/hooks/useColors').useColors>;
 }) {
   const deNome = participantes.find((p) => p.id === item.deId)?.nome ?? '?';
@@ -71,13 +74,15 @@ function PagamentoItem({
         <Text style={[styles.pagamentoValor, { color: colors.success }]}>
           {formatCurrency(item.valor)}
         </Text>
-        <Pressable
-          onPress={() => onDelete(item.id)}
-          style={({ pressed }) => [styles.undoButton, { opacity: pressed ? 0.6 : 1 }]}
-          testID={`undo-payment-${item.id}`}
-        >
-          <Feather name="rotate-ccw" size={14} color={colors.mutedForeground} />
-        </Pressable>
+        {isReceiver && (
+          <Pressable
+            onPress={() => onDelete(item.id)}
+            style={({ pressed }) => [styles.undoButton, { opacity: pressed ? 0.6 : 1 }]}
+            testID={`undo-payment-${item.id}`}
+          >
+            <Feather name="rotate-ccw" size={14} color={colors.mutedForeground} />
+          </Pressable>
+        )}
       </View>
     </View>
   );
@@ -90,6 +95,7 @@ export default function HistoricoScreen() {
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
 
+  const { getSession } = useSession();
   const { data: grupo } = useGetGrupo(grupoId);
   const {
     data: pagamentos,
@@ -100,6 +106,7 @@ export default function HistoricoScreen() {
   const deletePagamento = useDeletePagamento();
 
   const participantes = grupo?.participantes ?? [];
+  const currentParticipanteId = getSession(grupoId);
   const bottomPad = Platform.OS === 'web' ? 34 + 84 + 16 : insets.bottom + 100;
 
   const handleUndo = (pagamentoId: number) => {
@@ -145,6 +152,7 @@ export default function HistoricoScreen() {
           item={item}
           participantes={participantes}
           onDelete={handleUndo}
+          isReceiver={Number(item.paraId) === Number(currentParticipanteId)}
           colors={colors}
         />
       )}

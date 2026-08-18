@@ -49,10 +49,10 @@ export default function SaldosScreen() {
   const currentParticipanteId = getSession(grupoId);
   const [pagarDebito, setPagarDebito] = useState<DebitoItem | null>(null);
 
-  const getNome = (id: number) => participantes.find((p) => p.id === id)?.nome ?? '?';
-  const getChavePix = (id: number) => participantes.find((p) => p.id === id)?.chavePix ?? null;
+  const getNome = (id: number) => participantes.find((p) => Number(p.id) === Number(id))?.nome ?? '?';
+  const getChavePix = (id: number) => participantes.find((p) => Number(p.id) === Number(id))?.chavePix ?? null;
 
-  const handlePagar = (debito: DebitoItem) => setPagarDebito(debito);
+  const handlePagar = (debito: DebitoItem) => setPagarDebito({ ...debito });
 
   const handleConfirmarPagamento = async () => {
     if (!pagarDebito) return;
@@ -118,7 +118,7 @@ export default function SaldosScreen() {
         </View>
       }
       renderItem={({ item: debito }) => {
-        const isMyDebt = debito.deId === currentParticipanteId;
+        const isMyDebt = Number(debito.deId) === Number(currentParticipanteId);
         return (
           <View style={[
             styles.debitoItem,

@@ -649,10 +649,12 @@ export default function GroupDashboard() {
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
                         <span className="font-bold text-sm text-green-600">{formatCurrency(pag.valor)}</span>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                          title="Desfazer pagamento" onClick={() => handleUndoPagamento(pag.id)}>
-                          <Undo2 className="w-3.5 h-3.5" />
-                        </Button>
+                        {pag.paraId === myParticipantId && (
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                            title="Desfazer pagamento" onClick={() => handleUndoPagamento(pag.id)}>
+                            <Undo2 className="w-3.5 h-3.5" />
+                          </Button>
+                        )}
                       </div>
                     </div>
                   </Card>
