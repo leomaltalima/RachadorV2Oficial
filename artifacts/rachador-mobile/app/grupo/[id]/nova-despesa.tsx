@@ -425,7 +425,7 @@ export default function NovaDespesaScreen() {
               <View style={styles.customError}>
                 <Ionicons name="warning-outline" size={14} color={colors.destructive} />
                 <Text style={[styles.customErrorText, { color: colors.destructive }]}>
-                  Total: R$ {customTotal.toFixed(2)} (faltam R${' '}
+                  Total: R$ {customTotal.toFixed(2)} ({customTotal > valorTotal ? 'passou' : 'faltam'} R${' '}
                   {Math.abs(valorTotal - customTotal).toFixed(2)})
                 </Text>
               </View>
