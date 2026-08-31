@@ -1,0 +1,16 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "tea8cnXQ6AnaObdQYn8nY"
+uri = "file://exports/rachador-dados-recentes.csv"
+type = "table"
+title = "CSV — dados recentes do Rachador"
+description = "Exportação dos usuários e vínculos da tabela grupo_usuarios, com os grupos relacionados e as datas das associações."
+logical_id = "3432dc22-09f0-4300-8601-8af74350f51c"
+content_hash = "sha256:a0428885857979682c461e49144eb774d1462a35049da749097581d398817bcf"
+size = 1660
+mtime_ms = 1788180853759
+storage_uri = "gcs://replit-rams-assets-kirk/rams/assets/repl:04c7e377-56af-4806-845c-2811c87b0109/3432dc22-09f0-4300-8601-8af74350f51c/62ed402c-420b-4c09-99d1-618165634ceb"
+storage_version_token = "1788180865256438"
+content_type = "text/csv"
