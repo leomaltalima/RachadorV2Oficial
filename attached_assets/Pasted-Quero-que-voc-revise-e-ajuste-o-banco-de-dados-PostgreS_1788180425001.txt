@@ -1,0 +1,58 @@
+Quero que você revise e ajuste o banco de dados PostgreSQL deste app para que ele cumpra exatamente estes requisitos, sem apagar dados ou estruturas existentes desnecessariamente.
+
+Requisitos obrigatórios:
+
+O banco deve ter no mínimo 4 tabelas.
+Deve existir pelo menos 1 chave estrangeira real entre as tabelas.
+Deve existir pelo menos 1 relação N:N implementada por uma tabela associativa.
+O schema deve ser coerente com o funcionamento atual do app Rachador.
+Não apague nenhuma tabela existente.
+Não apague nenhuma coluna existente.
+Não apague nem sobrescreva os registros que já existem.
+Antes de criar qualquer coisa nova, analise o schema atual e aproveite as tabelas existentes.
+
+Considerando o funcionamento do app, verifique se já existem estruturas equivalentes a:
+
+usuários
+grupos
+despesas
+associação entre usuários e grupos
+
+Para a relação N:N entre usuários e grupos, deve existir uma tabela associativa equivalente a:
+
+grupo_usuarios
+
+com, no mínimo:
+
+grupo_id, como chave estrangeira para a tabela de grupos
+usuario_id, como chave estrangeira para a tabela de usuários
+
+Se já existir uma tabela equivalente com outro nome, utilize a existente e não crie uma duplicada.
+
+A tabela de despesas deve continuar relacionada ao usuário que pagou e ao grupo da despesa por meio de foreign keys, se isso estiver de acordo com o schema atual.
+
+Depois de analisar o banco:
+
+crie apenas as tabelas ou relacionamentos que estiverem faltando;
+configure corretamente as PRIMARY KEYS e FOREIGN KEYS;
+garanta que a tabela associativa represente de fato uma relação muitos-para-muitos;
+não altere nomes ou campos existentes sem necessidade;
+não faça reset do banco;
+não drope nenhuma tabela;
+não use DROP TABLE, TRUNCATE ou qualquer operação destrutiva.
+
+Depois da alteração, insira pelo menos 10 registros fictícios plausíveis, em português do Brasil, em cada tabela principal que ainda não tenha essa quantidade, respeitando todas as foreign keys. Não substitua os registros que já existem.
+
+Também verifique se o app continua conseguindo criar registros pelo formulário e gravá-los no PostgreSQL.
+
+Ao terminar, me mostre claramente:
+
+todas as tabelas existentes;
+as colunas de cada tabela;
+as primary keys;
+as foreign keys;
+qual é a tabela associativa N:N;
+quais duas tabelas ela relaciona;
+quantos registros existem em cada tabela principal.
+
+Faça as mudanças diretamente no banco de desenvolvimento deste Replit, com o mínimo de alterações possível.
