@@ -130,9 +130,9 @@ export default function HomeScreen() {
       <View style={styles.header}>
         <View style={styles.logoRow}>
           <Image
-            source={require('../../assets/images/icon.png')}
+            source={require('../../assets/images/logo-transparent.png')}
             style={styles.logoImage}
-            resizeMode="cover"
+            resizeMode="contain"
           />
           <Text style={[styles.logoText, { color: colors.foreground }]}>rachador</Text>
         </View>

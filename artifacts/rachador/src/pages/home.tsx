@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { useGetGrupoByCodigo } from "@workspace/api-client-react"
 import { getSession, setSession, clearSession } from "@/lib/session"
-import { PlusCircle, UsersRound, LogOut, Users, ChevronRight, DoorOpen } from "lucide-react"
+import { PlusCircle, LogOut, Users, ChevronRight, DoorOpen } from "lucide-react"
 import { formatCurrency } from "@/lib/utils"
 
 interface MeuGrupo {
@@ -93,9 +93,11 @@ export default function Home() {
 
         {/* Header */}
         <div className="text-center space-y-2">
-          <div className="w-16 h-16 bg-primary/10 rounded-3xl flex items-center justify-center mx-auto mb-4">
-            <UsersRound className="w-8 h-8 text-primary" />
-          </div>
+          <img
+            src={`${import.meta.env.BASE_URL}logo-transparent.png`}
+            alt="Logo do Rachador"
+            className="w-20 h-20 object-contain mx-auto mb-4"
+          />
           <h1 className="text-3xl font-extrabold tracking-tight text-foreground">Rachador</h1>
           <p className="text-muted-foreground text-lg">Divida as contas, não as amizades.</p>
         </div>
