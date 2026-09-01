@@ -1,0 +1,528 @@
+Estou desenvolvendo um aplicativo para rachar contas entre amigos. O sistema já possui:
+
+* Login de usuários
+* Criação de grupos
+* Entrada em grupos através de código de convite
+* Cadastro de gastos
+* Seleção de quem pagou um gasto
+* Seleção de quem deve participar da divisão
+* Cálculo de quanto cada pessoa deve
+* Cadastro de chave PIX
+* Área mostrando quanto o usuário deve para cada pessoa
+
+Quero melhorar o aplicativo sem remover ou quebrar nenhuma funcionalidade existente.
+
+Analise primeiro a estrutura atual do projeto, o banco de dados, as rotas, componentes, APIs e funcionalidades já implementadas. Reutilize o que já existe sempre que possível.
+
+Implemente as melhorias abaixo.
+
+## 1. Saldo líquido automático entre participantes
+
+O sistema deve calcular o saldo final entre os usuários de um grupo.
+
+Exemplo:
+
+Se João deve R$ 50 para Pedro, mas Pedro deve R$ 20 para João, não quero que apareçam duas dívidas diferentes.
+
+O resultado deve ser:
+
+João deve R$ 30 para Pedro.
+
+Evite dívidas duplicadas ou pagamentos desnecessários.
+
+O saldo deve ser recalculado automaticamente quando:
+
+* um gasto for criado;
+* um gasto for editado;
+* um gasto for excluído;
+* um participante for adicionado ao gasto;
+* a divisão do gasto for alterada;
+* um pagamento for confirmado.
+
+## 2. Simplificação inteligente das dívidas
+
+Quero reduzir a quantidade de transferências necessárias dentro de um grupo.
+
+Exemplo:
+
+João deve R$ 50 para Pedro.
+
+Pedro deve R$ 50 para Maria.
+
+Em vez de exigir duas transferências, o sistema pode mostrar:
+
+João paga R$ 50 diretamente para Maria.
+
+Crie uma lógica de simplificação das dívidas baseada no saldo líquido de cada participante.
+
+O total que cada usuário deve pagar ou receber deve permanecer matematicamente correto.
+
+Não altere o histórico original dos gastos. A simplificação deve afetar apenas a forma como os acertos são apresentados.
+
+## 3. Diferentes formas de dividir um gasto
+
+Ao criar ou editar um gasto, quero poder escolher a forma de divisão.
+
+Adicionar as opções:
+
+* Dividir igualmente
+* Dividir por valor personalizado
+* Dividir por porcentagem
+* Dividir por cotas/partes
+
+### Divisão igual
+
+Exemplo:
+
+Conta = R$ 300
+
+3 participantes
+
+Cada pessoa deve R$ 100.
+
+### Valor personalizado
+
+Permitir informar manualmente o valor devido por cada participante.
+
+Validar que a soma dos valores seja igual ao valor total do gasto.
+
+### Porcentagem
+
+Permitir definir uma porcentagem para cada participante.
+
+Validar que a soma seja exatamente 100%.
+
+Calcular automaticamente o valor correspondente.
+
+### Cotas
+
+Exemplo:
+
+João = 2 cotas
+
+Maria = 1 cota
+
+Pedro = 1 cota
+
+Gasto = R$ 400
+
+Total = 4 cotas
+
+João paga R$ 200
+
+Maria paga R$ 100
+
+Pedro paga R$ 100.
+
+## 4. Sistema de pagamentos
+
+Criar uma área de pagamentos/acertos.
+
+Quando o sistema mostrar que um usuário deve dinheiro para outro, adicionar um botão como:
+
+"Pagar"
+
+Ao clicar, mostrar:
+
+* nome do recebedor;
+* valor;
+* chave PIX;
+* botão para copiar chave PIX;
+* opção de marcar o pagamento como realizado.
+
+Criar status para os pagamentos:
+
+* pendente
+* aguardando confirmação
+* confirmado
+* cancelado
+
+Fluxo:
+
+Usuário A marca que realizou o pagamento.
+
+O pagamento passa para "aguardando confirmação".
+
+Usuário B pode confirmar que recebeu.
+
+Depois da confirmação, o pagamento passa para "confirmado".
+
+Somente pagamentos confirmados devem ser considerados no cálculo dos valores já quitados.
+
+## 5. Histórico do grupo
+
+Criar uma área chamada "Histórico" ou "Atividades".
+
+Registrar eventos importantes, como:
+
+* usuário entrou no grupo;
+* usuário saiu do grupo;
+* gasto criado;
+* gasto editado;
+* gasto excluído;
+* pagamento marcado como realizado;
+* pagamento confirmado;
+* pagamento cancelado.
+
+Mostrar:
+
+* usuário responsável;
+* ação;
+* data;
+* horário.
+
+Não é necessário armazenar informações excessivas, apenas o suficiente para entender o que aconteceu.
+
+## 6. Categorias de gastos
+
+Adicionar categorias aos gastos.
+
+Criar inicialmente:
+
+* Alimentação
+* Transporte
+* Hospedagem
+* Lazer
+* Mercado
+* Compras
+* Saúde
+* Outros
+
+Adicionar um campo de categoria ao cadastro de gasto.
+
+Também permitir filtrar os gastos por categoria.
+
+Deixe a estrutura preparada para futuramente permitir categorias personalizadas.
+
+## 7. Dashboard do grupo
+
+Criar uma página ou seção principal dentro de cada grupo com um resumo financeiro.
+
+Mostrar:
+
+* nome do grupo;
+* total gasto pelo grupo;
+* quantidade de participantes;
+* quanto o usuário atual pagou;
+* quanto corresponde à participação dele nos gastos;
+* quanto ele tem para receber;
+* quanto ele deve;
+* saldo líquido.
+
+Exemplo:
+
+Grupo: Viagem Florianópolis
+
+Total gasto: R$ 2.480,00
+
+Você pagou: R$ 850,00
+
+Sua participação: R$ 640,00
+
+Você tem a receber: R$ 210,00
+
+Ou:
+
+Você deve: R$ 150,00
+
+Adicionar também uma seção de acertos pendentes.
+
+## 8. Melhorias no PIX
+
+Na tela de pagamento, melhorar a experiência com PIX.
+
+Mostrar:
+
+* nome do recebedor;
+* chave PIX;
+* botão "Copiar chave PIX";
+* valor;
+* botão "Marcar como pago".
+
+Se for possível com as bibliotecas já existentes no projeto, adicionar geração de QR Code.
+
+Não implemente integração bancária real.
+
+O aplicativo não precisa realizar o PIX automaticamente.
+
+O objetivo é apenas facilitar o pagamento.
+
+## 9. Administrador do grupo
+
+O usuário que criar o grupo deve ser administrador.
+
+Criar papéis:
+
+* admin
+* membro
+
+Administrador pode:
+
+* alterar nome do grupo;
+* remover participantes;
+* gerar novo código de convite;
+* excluir determinados registros, quando necessário;
+* encerrar o grupo.
+
+Um membro comum não deve ter essas permissões administrativas.
+
+Não permita remover participantes de uma forma que corrompa gastos antigos.
+
+Se necessário, mantenha o usuário associado ao histórico, mas marque como inativo no grupo.
+
+## 10. Melhorias nos convites
+
+Manter o código de convite existente.
+
+Adicionar, se possível:
+
+* opção de regenerar o código;
+* botão para copiar o código;
+* link de convite;
+* QR Code contendo o código ou link.
+
+Exemplo:
+
+/join/ABC123
+
+O código precisa ser único.
+
+## 11. Estrutura de banco de dados
+
+Antes de alterar o banco, analise o schema atual.
+
+Não recrie tudo desnecessariamente.
+
+Faça migrations seguras.
+
+A estrutura deve suportar pelo menos conceitos equivalentes a:
+
+### usuarios
+
+* id
+* nome
+* email
+* senha ou referência ao sistema de autenticação atual
+* chave_pix
+
+### grupos
+
+* id
+* nome
+* codigo_convite
+* criador_id
+* status
+* criado_em
+
+### grupo_usuarios
+
+Tabela associativa N:N entre grupos e usuários.
+
+Campos sugeridos:
+
+* id
+* grupo_id
+* usuario_id
+* papel
+* ativo
+* entrou_em
+
+### gastos
+
+* id
+* grupo_id
+* descricao
+* valor
+* pago_por
+* categoria
+* tipo_divisao
+* criado_em
+* atualizado_em
+
+### gasto_participantes
+
+Tabela associativa N:N entre gastos e usuários.
+
+Campos:
+
+* id
+* gasto_id
+* usuario_id
+* valor_devido
+* porcentagem
+* cotas
+
+Nem todos os campos precisam necessariamente ser preenchidos ao mesmo tempo. Isso depende do tipo de divisão.
+
+### pagamentos
+
+* id
+* grupo_id
+* pagador_id
+* recebedor_id
+* valor
+* status
+* criado_em
+* pago_em
+* confirmado_em
+
+### atividades
+
+* id
+* grupo_id
+* usuario_id
+* tipo
+* descricao
+* criado_em
+
+Adapte esses nomes à convenção já utilizada no projeto.
+
+## 12. Integridade do banco
+
+Garanta:
+
+* chaves primárias;
+* chaves estrangeiras;
+* relacionamento N:N;
+* integridade referencial;
+* índices onde forem úteis;
+* valores monetários tratados corretamente;
+* nenhuma dívida com valor negativo;
+* nenhuma divisão cujo total seja diferente do total do gasto.
+
+Para valores monetários, evite erros de ponto flutuante.
+
+Use decimal/numeric no banco de dados ou valores em centavos inteiros, dependendo da arquitetura já utilizada.
+
+## 13. Interface
+
+Mantenha o estilo atual da aplicação.
+
+A interface deve continuar simples e intuitiva.
+
+Dentro de cada grupo, organize algo semelhante a:
+
+* Resumo
+* Gastos
+* Saldos
+* Pagamentos
+* Participantes
+* Histórico
+* Configurações
+
+Não precisa obrigatoriamente ser uma navbar. Pode adaptar ao design já existente.
+
+## 14. Responsividade
+
+Garanta que as telas funcionem bem principalmente em celular.
+
+Evite tabelas largas ou elementos que estourem horizontalmente.
+
+Use cards ou layouts responsivos quando necessário.
+
+## 15. Validações
+
+Adicionar validações para impedir situações incorretas, como:
+
+* gasto sem participantes;
+* valor igual ou menor que zero;
+* porcentagens que não somam 100%;
+* valores personalizados que não somam o total;
+* participante duplicado;
+* usuário entrando duas vezes no mesmo grupo;
+* pagamento maior que a dívida existente;
+* confirmação de pagamento por usuário que não é o recebedor;
+* usuário comum utilizando funções de administrador.
+
+## 16. Segurança
+
+Não confie apenas nas validações do frontend.
+
+As permissões também precisam ser verificadas no backend.
+
+Um usuário só pode acessar grupos dos quais participa.
+
+Um usuário não deve poder modificar gastos de outro grupo alterando IDs manualmente.
+
+Proteja todas as rotas relevantes.
+
+## 17. Não quebrar funcionalidades existentes
+
+Muito importante:
+
+Não remova o que já funciona.
+
+Faça primeiro uma análise do projeto.
+
+Identifique:
+
+* frontend;
+* backend;
+* banco;
+* ORM;
+* autenticação;
+* estrutura de rotas;
+* componentes;
+* schema atual.
+
+Depois implemente as alterações incrementalmente.
+
+Se alguma funcionalidade já existir parcialmente, apenas complete ou melhore.
+
+## 18. Testes
+
+Depois de implementar, teste pelo menos os seguintes cenários:
+
+1. Criar grupo.
+2. Entrar em grupo com código.
+3. Adicionar 3 participantes.
+4. Criar gasto dividido igualmente.
+5. Criar gasto dividido por porcentagem.
+6. Criar gasto por valores personalizados.
+7. Criar gasto usando cotas.
+8. Verificar saldo de cada usuário.
+9. Verificar simplificação das dívidas.
+10. Marcar pagamento como realizado.
+11. Confirmar pagamento.
+12. Verificar atualização dos saldos.
+13. Editar um gasto.
+14. Excluir um gasto.
+15. Verificar permissões de administrador.
+16. Verificar histórico.
+17. Testar em layout mobile.
+
+## 19. Ordem de implementação
+
+Execute preferencialmente nesta ordem:
+
+1. Analisar projeto e banco atual.
+2. Criar migrations necessárias.
+3. Ajustar modelos e relacionamentos.
+4. Implementar cálculo de saldo.
+5. Implementar simplificação das dívidas.
+6. Implementar os novos tipos de divisão.
+7. Implementar pagamentos.
+8. Implementar histórico.
+9. Implementar categorias.
+10. Criar dashboard.
+11. Melhorar PIX.
+12. Criar funções de administrador.
+13. Melhorar convites.
+14. Ajustar interface e responsividade.
+15. Executar testes.
+
+Antes de fazer mudanças grandes, verifique como o sistema atual funciona para não duplicar funcionalidades nem criar tabelas redundantes.
+
+Ao final, me informe:
+
+* quais arquivos foram alterados;
+* quais tabelas foram criadas ou modificadas;
+* quais migrations foram realizadas;
+* quais novas rotas ou endpoints foram criados;
+* como funciona o algoritmo de saldo;
+* como funciona a simplificação das dívidas;
+* quais validações foram adicionadas;
+* como testar cada nova funcionalidade;
+* se existe algum ponto que ainda precise ser configurado manualmente.
+
+Faça as alterações diretamente no projeto, seguindo a arquitetura e o padrão de código já existentes.
