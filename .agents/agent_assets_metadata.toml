@@ -28,3 +28,17 @@ mtime_ms = 1786975880616
 storage_uri = "gcs://replit-rams-assets-kirk/rams/assets/repl:04c7e377-56af-4806-845c-2811c87b0109/d124afdc-5c7e-48d7-b4f0-e55273c1862d/23d47bcb-4785-42a8-a28b-4f43b7124d49"
 storage_version_token = "1788262547489271"
 content_type = "image/svg+xml"
+
+[[outputs]]
+id = "6aXJYMmLGL0G-7z-POKJX"
+uri = "file://artifacts/rachador-mobile/assets/images/icon.png"
+type = "image"
+title = "Logo do Rachador — bloco com tesoura"
+description = "Imagem da logo do Rachador com o bloco de notas e a tesoura."
+logical_id = "081bf147-9428-4c81-8f43-4e455a1ad5c9"
+content_hash = "sha256:ce8f8fd2f94e74add87dd59d93645c6bef05dbcc88cf8b976bc0a41075c624ed"
+size = 850750
+mtime_ms = 1786976796948
+storage_uri = "gcs://replit-rams-assets-kirk/rams/assets/repl:04c7e377-56af-4806-845c-2811c87b0109/081bf147-9428-4c81-8f43-4e455a1ad5c9/cf7fa4a9-1c38-47a5-9630-3f1ceb5ec697"
+storage_version_token = "1788262704566361"
+content_type = "image/png"
