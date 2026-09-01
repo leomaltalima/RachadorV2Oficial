@@ -8,5 +8,17 @@
 
 export interface Divisao {
   participanteId: number;
+  /** @minimum 0 */
   valorDevido: number;
+  /**
+     * @minimum 0
+     * @maximum 100
+     * @nullable
+     */
+  porcentagem?: number | null;
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  cotas?: number | null;
 }

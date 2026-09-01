@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -6,6 +6,7 @@ import {
   Platform,
   Pressable,
   RefreshControl,
+  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -26,6 +27,12 @@ import {
   getGetSaldoQueryKey,
 } from '@workspace/api-client-react';
 import type { DespesaComDivisoes } from '@workspace/api-client-react';
+
+const CATEGORIES = [
+  'Todos',
+  'Alimentação', 'Transporte', 'Hospedagem', 'Lazer',
+  'Mercado', 'Compras', 'Saúde', 'Outros'
+] as const;
 
 function formatCurrency(value: number) {
   return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -57,11 +64,13 @@ function ExpenseItem({
         <Ionicons name="receipt-outline" size={20} color={colors.primary} />
       </View>
       <View style={{ flex: 1, gap: 2 }}>
-        <Text style={[styles.expenseDesc, { color: colors.foreground }]} numberOfLines={1}>
-          {item.descricao}
-        </Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <Text style={[styles.expenseDesc, { color: colors.foreground }]} numberOfLines={1}>
+            {item.descricao}
+          </Text>
+        </View>
         <Text style={[styles.expenseMeta, { color: colors.mutedForeground }]}>
-          Pago por {pagador?.nome ?? '?'} · {formatDate(item.criadoEm)}
+          {item.categoria} · Pago por {pagador?.nome ?? '?'} · {formatDate(item.criadoEm.toString())}
         </Text>
       </View>
       <View style={styles.expenseRight}>
@@ -90,6 +99,8 @@ export default function DespesasScreen() {
   const queryClient = useQueryClient();
   const { getSession } = useSession();
 
+  const [selectedCategory, setSelectedCategory] = useState<string>('Todos');
+
   const { data: grupo } = useGetGrupo(grupoId);
   const {
     data: despesas,
@@ -105,7 +116,11 @@ export default function DespesasScreen() {
   const grupoExtended = grupo as typeof grupo & { criadorClerkUserId?: string | null };
   const isLeader = !!userId && !!grupoExtended?.criadorClerkUserId && userId === grupoExtended.criadorClerkUserId;
 
-  const totalGasto = (despesas ?? []).reduce((sum, d) => sum + d.valor, 0);
+  const filteredDespesas = despesas?.filter(d => 
+    selectedCategory === 'Todos' || d.categoria === selectedCategory
+  ) ?? [];
+
+  const totalGasto = filteredDespesas.reduce((sum, d) => sum + d.valor, 0);
 
   const handleDelete = useCallback(
     (expenseId: number) => {
@@ -134,10 +149,42 @@ export default function DespesasScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
+      {/* Category filter */}
+      <View style={{ borderBottomWidth: 1, borderBottomColor: colors.border }}>
+        <ScrollView 
+          horizontal 
+          showsHorizontalScrollIndicator={false} 
+          contentContainerStyle={styles.categoryScroll}
+        >
+          {CATEGORIES.map(cat => {
+            const isSelected = selectedCategory === cat;
+            return (
+              <Pressable
+                key={cat}
+                onPress={() => setSelectedCategory(cat)}
+                style={[
+                  styles.categoryBadge,
+                  {
+                    backgroundColor: isSelected ? colors.primary : colors.card,
+                    borderColor: isSelected ? colors.primary : colors.border,
+                  }
+                ]}
+              >
+                <Text style={[styles.categoryText, { color: isSelected ? colors.primaryForeground : colors.foreground }]}>
+                  {cat}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+      </View>
+
       {/* Summary bar */}
-      {(despesas?.length ?? 0) > 0 && (
+      {filteredDespesas.length > 0 && (
         <View style={[styles.summaryBar, { backgroundColor: colors.accent, borderBottomColor: colors.border }]}>
-          <Text style={[styles.summaryLabel, { color: colors.mutedForeground }]}>Total gasto</Text>
+          <Text style={[styles.summaryLabel, { color: colors.mutedForeground }]}>
+            {selectedCategory === 'Todos' ? 'Total gasto' : `Total em ${selectedCategory}`}
+          </Text>
           <Text style={[styles.summaryValue, { color: colors.primary }]}>
             {formatCurrency(totalGasto)}
           </Text>
@@ -150,7 +197,7 @@ export default function DespesasScreen() {
         </View>
       ) : (
         <FlatList
-          data={despesas ?? []}
+          data={filteredDespesas}
           keyExtractor={(item) => String(item.id)}
           contentContainerStyle={[styles.list, { paddingBottom: bottomPad }]}
           refreshControl={
@@ -160,7 +207,7 @@ export default function DespesasScreen() {
               tintColor={colors.primary}
             />
           }
-          scrollEnabled={!!(despesas?.length)}
+          scrollEnabled={filteredDespesas.length > 0}
           renderItem={({ item }) => (
             <ExpenseItem
               item={item}
@@ -174,10 +221,13 @@ export default function DespesasScreen() {
             <View style={styles.emptyState}>
               <Ionicons name="receipt-outline" size={48} color={colors.border} />
               <Text style={[styles.emptyTitle, { color: colors.foreground }]}>
-                Nenhuma despesa ainda
+                Nenhuma despesa encontrada
               </Text>
               <Text style={[styles.emptySubtitle, { color: colors.mutedForeground }]}>
-                Adicione a primeira despesa do grupo
+                {selectedCategory === 'Todos' 
+                  ? 'Adicione a primeira despesa do grupo'
+                  : `Nenhuma despesa na categoria ${selectedCategory}`
+                }
               </Text>
             </View>
           }
@@ -216,6 +266,21 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  categoryScroll: {
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  categoryBadge: {
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 16,
+    borderWidth: 1,
+  },
+  categoryText: {
+    fontFamily: 'PlusJakartaSans_500Medium',
+    fontSize: 13,
   },
   summaryBar: {
     flexDirection: 'row',
@@ -256,6 +321,7 @@ const styles = StyleSheet.create({
   expenseDesc: {
     fontFamily: 'PlusJakartaSans_600SemiBold',
     fontSize: 15,
+    flex: 1,
   },
   expenseMeta: {
     fontFamily: 'PlusJakartaSans_400Regular',

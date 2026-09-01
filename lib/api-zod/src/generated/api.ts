@@ -147,16 +147,29 @@ export const ListDespesasParams = zod.object({
   "grupoId": zod.coerce.number()
 })
 
+export const listDespesasResponseDivisoesItemValorDevidoMin = 0;
+
+export const listDespesasResponseDivisoesItemPorcentagemMin = 0;
+export const listDespesasResponseDivisoesItemPorcentagemMax = 100;
+
+export const listDespesasResponseDivisoesItemCotasMin = 0;
+
+
+
 export const ListDespesasResponseItem = zod.object({
   "id": zod.number(),
   "descricao": zod.string(),
   "valor": zod.number(),
+  "categoria": zod.enum(['Alimentação', 'Transporte', 'Hospedagem', 'Lazer', 'Mercado', 'Compras', 'Saúde', 'Outros']),
+  "tipoDivisao": zod.enum(['igual', 'selecionados', 'personalizado', 'porcentagem', 'cotas']),
   "pagoPorId": zod.number(),
   "grupoId": zod.number(),
   "criadoEm": zod.coerce.date(),
   "divisoes": zod.array(zod.object({
   "participanteId": zod.number(),
-  "valorDevido": zod.number()
+  "valorDevido": zod.number().min(listDespesasResponseDivisoesItemValorDevidoMin),
+  "porcentagem": zod.number().min(listDespesasResponseDivisoesItemPorcentagemMin).max(listDespesasResponseDivisoesItemPorcentagemMax).nullish(),
+  "cotas": zod.number().min(listDespesasResponseDivisoesItemCotasMin).nullish()
 }))
 })
 export const ListDespesasResponse = zod.array(ListDespesasResponseItem)
@@ -172,29 +185,55 @@ export const CreateDespesaParams = zod.object({
 
 export const createDespesaBodyValorMin = 0.01;
 
+export const createDespesaBodyCategoriaDefault = `Outros`;
+export const createDespesaBodyTipoDivisaoDefault = `igual`;
+export const createDespesaBodyDivisoesItemValorDevidoMin = 0;
+
+export const createDespesaBodyDivisoesItemPorcentagemMin = 0;
+export const createDespesaBodyDivisoesItemPorcentagemMax = 100;
+
+export const createDespesaBodyDivisoesItemCotasMin = 0;
+
 
 
 
 export const CreateDespesaBody = zod.object({
   "descricao": zod.string().min(1),
   "valor": zod.number().min(createDespesaBodyValorMin),
+  "categoria": zod.enum(['Alimentação', 'Transporte', 'Hospedagem', 'Lazer', 'Mercado', 'Compras', 'Saúde', 'Outros']).default(createDespesaBodyCategoriaDefault),
+  "tipoDivisao": zod.enum(['igual', 'selecionados', 'personalizado', 'porcentagem', 'cotas']).default(createDespesaBodyTipoDivisaoDefault),
   "pagoPorId": zod.number(),
   "divisoes": zod.array(zod.object({
   "participanteId": zod.number(),
-  "valorDevido": zod.number()
+  "valorDevido": zod.number().min(createDespesaBodyDivisoesItemValorDevidoMin),
+  "porcentagem": zod.number().min(createDespesaBodyDivisoesItemPorcentagemMin).max(createDespesaBodyDivisoesItemPorcentagemMax).nullish(),
+  "cotas": zod.number().min(createDespesaBodyDivisoesItemCotasMin).nullish()
 })).min(1)
 })
+
+export const createDespesaResponseDivisoesItemValorDevidoMin = 0;
+
+export const createDespesaResponseDivisoesItemPorcentagemMin = 0;
+export const createDespesaResponseDivisoesItemPorcentagemMax = 100;
+
+export const createDespesaResponseDivisoesItemCotasMin = 0;
+
+
 
 export const CreateDespesaResponse = zod.object({
   "id": zod.number(),
   "descricao": zod.string(),
   "valor": zod.number(),
+  "categoria": zod.enum(['Alimentação', 'Transporte', 'Hospedagem', 'Lazer', 'Mercado', 'Compras', 'Saúde', 'Outros']),
+  "tipoDivisao": zod.enum(['igual', 'selecionados', 'personalizado', 'porcentagem', 'cotas']),
   "pagoPorId": zod.number(),
   "grupoId": zod.number(),
   "criadoEm": zod.coerce.date(),
   "divisoes": zod.array(zod.object({
   "participanteId": zod.number(),
-  "valorDevido": zod.number()
+  "valorDevido": zod.number().min(createDespesaResponseDivisoesItemValorDevidoMin),
+  "porcentagem": zod.number().min(createDespesaResponseDivisoesItemPorcentagemMin).max(createDespesaResponseDivisoesItemPorcentagemMax).nullish(),
+  "cotas": zod.number().min(createDespesaResponseDivisoesItemCotasMin).nullish()
 }))
 })
 
@@ -232,14 +271,20 @@ export const GetSaldoResponse = zod.object({
 
 
 /**
+ * @summary Delete (undo) a payment
+ */
+export const DeletePagamentoParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeletePagamentoResponse = zod.void()
+
+
+/**
  * @summary List payments for a group
  */
 export const ListPagamentosParams = zod.object({
   "grupoId": zod.coerce.number()
-})
-
-export const DeletePagamentoParams = zod.object({
-  "id": zod.coerce.number()
 })
 
 export const ListPagamentosResponseItem = zod.object({
@@ -269,7 +314,7 @@ export const CreatePagamentoBody = zod.object({
   "deId": zod.number(),
   "paraId": zod.number(),
   "valor": zod.number().min(createPagamentoBodyValorMin),
-  "comprovante": zod.string().nullable().optional()
+  "comprovante": zod.string().nullish()
 })
 
 export const CreatePagamentoResponse = zod.object({

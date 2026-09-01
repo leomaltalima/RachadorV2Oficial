@@ -480,6 +480,14 @@ components:
           type: number
         valorDevido:
           type: number
+          minimum: 0
+        porcentagem:
+          type: ["number", "null"]
+          minimum: 0
+          maximum: 100
+        cotas:
+          type: ["number", "null"]
+          minimum: 0
       required:
         - participanteId
         - valorDevido
@@ -493,6 +501,25 @@ components:
           type: string
         valor:
           type: number
+        categoria:
+          type: string
+          enum:
+            - Alimentação
+            - Transporte
+            - Hospedagem
+            - Lazer
+            - Mercado
+            - Compras
+            - Saúde
+            - Outros
+        tipoDivisao:
+          type: string
+          enum:
+            - igual
+            - selecionados
+            - personalizado
+            - porcentagem
+            - cotas
         pagoPorId:
           type: number
         grupoId:
@@ -508,6 +535,8 @@ components:
         - id
         - descricao
         - valor
+        - categoria
+        - tipoDivisao
         - pagoPorId
         - grupoId
         - criadoEm
@@ -522,6 +551,27 @@ components:
         valor:
           type: number
           minimum: 0.01
+        categoria:
+          type: string
+          enum:
+            - Alimentação
+            - Transporte
+            - Hospedagem
+            - Lazer
+            - Mercado
+            - Compras
+            - Saúde
+            - Outros
+          default: Outros
+        tipoDivisao:
+          type: string
+          enum:
+            - igual
+            - selecionados
+            - personalizado
+            - porcentagem
+            - cotas
+          default: igual
         pagoPorId:
           type: number
         divisoes:

@@ -8,7 +8,11 @@
 
 export * from './debitoItem';
 export * from './despesaComDivisoes';
+export * from './despesaComDivisoesCategoria';
+export * from './despesaComDivisoesTipoDivisao';
 export * from './despesaInput';
+export * from './despesaInputCategoria';
+export * from './despesaInputTipoDivisao';
 export * from './divisao';
 export * from './errorResponse';
 export * from './grupo';

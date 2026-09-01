@@ -15,7 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@clerk/expo';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors } from '@/hooks/useColors';
-import type { Participante } from '@workspace/api-client';
+import type { Participante } from '@workspace/api-client-react';
 
 export interface ReceiptItem {
   nome: string;

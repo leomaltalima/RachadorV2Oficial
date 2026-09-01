@@ -24,7 +24,7 @@ export default function JoinGroup() {
   const { isSignedIn } = useAuth()
 
   const { data: grupo, isLoading } = useGetGrupo(grupoId, {
-    query: { enabled: !!grupoId }
+    query: { enabled: !!grupoId, queryKey: getGetGrupoQueryKey(grupoId) }
   })
   const addParticipante = useAddParticipante()
   const updateParticipante = useUpdateParticipante()

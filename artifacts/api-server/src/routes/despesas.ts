@@ -36,6 +36,8 @@ router.get("/grupos/:grupoId/despesas", async (req, res): Promise<void> => {
         divisoes: divisoes.map((div) => ({
           participanteId: div.participanteId,
           valorDevido: parseFloat(div.valorDevido),
+          porcentagem: div.porcentagem == null ? null : parseFloat(div.porcentagem),
+          cotas: div.cotas == null ? null : parseFloat(div.cotas),
         })),
       };
     })
@@ -67,45 +69,86 @@ router.post("/grupos/:grupoId/despesas", async (req, res): Promise<void> => {
     return;
   }
 
-  const pagoPor = await db
-    .select()
+  const participantesGrupo = await db
+    .select({ id: participantesTable.id, nome: participantesTable.nome })
     .from(participantesTable)
-    .where(eq(participantesTable.id, parsed.data.pagoPorId));
+    .where(eq(participantesTable.grupoId, params.data.grupoId));
+  const participantesIds = new Set(participantesGrupo.map((p) => p.id));
+  const pagoPor = participantesGrupo.find((p) => p.id === parsed.data.pagoPorId);
+  const idsDivisao = parsed.data.divisoes.map((d) => d.participanteId);
 
-  if (!pagoPor.length) {
-    res.status(404).json({ error: "Participante pagador não encontrado" });
+  if (!pagoPor) {
+    res.status(400).json({ error: "O pagador não pertence a este grupo" });
+    return;
+  }
+  if (new Set(idsDivisao).size !== idsDivisao.length) {
+    res.status(400).json({ error: "Um participante não pode aparecer mais de uma vez na divisão" });
+    return;
+  }
+  if (idsDivisao.some((id) => !participantesIds.has(id))) {
+    res.status(400).json({ error: "Todos os participantes da divisão devem pertencer ao grupo" });
+    return;
+  }
+  if (parsed.data.divisoes.some((d) => d.valorDevido < 0)) {
+    res.status(400).json({ error: "Os valores da divisão não podem ser negativos" });
     return;
   }
 
-  const [despesa] = await db
-    .insert(despesasTable)
-    .values({
+  const totalCentavos = Math.round(parsed.data.valor * 100);
+  const somaCentavos = parsed.data.divisoes.reduce(
+    (total, d) => total + Math.round(d.valorDevido * 100),
+    0,
+  );
+  if (somaCentavos !== totalCentavos) {
+    res.status(400).json({
+      error: `A soma da divisão deve ser exatamente R$ ${parsed.data.valor.toFixed(2).replace(".", ",")}`,
+    });
+    return;
+  }
+
+  const tipoDivisao = parsed.data.tipoDivisao ?? "igual";
+  if (tipoDivisao === "porcentagem") {
+    const soma = parsed.data.divisoes.reduce((total, d) => total + (d.porcentagem ?? 0), 0);
+    if (Math.abs(soma - 100) > 0.01) {
+      res.status(400).json({ error: "A soma das porcentagens deve ser 100%" });
+      return;
+    }
+  }
+  if (tipoDivisao === "cotas" && parsed.data.divisoes.some((d) => !d.cotas || d.cotas <= 0)) {
+    res.status(400).json({ error: "Todas as cotas devem ser maiores que zero" });
+    return;
+  }
+
+  const created = await db.transaction(async (tx) => {
+    const [despesa] = await tx.insert(despesasTable).values({
       descricao: parsed.data.descricao,
-      valor: String(parsed.data.valor),
+      valor: parsed.data.valor.toFixed(2),
+      categoria: parsed.data.categoria ?? "Outros",
+      tipoDivisao,
       pagoPorId: parsed.data.pagoPorId,
       grupoId: params.data.grupoId,
-    })
-    .returning();
+    }).returning();
 
-  await db.insert(divisoesTable).values(
-    parsed.data.divisoes.map((d) => ({
-      despesaId: despesa.id,
-      participanteId: d.participanteId,
-      valorDevido: String(d.valorDevido),
-    }))
-  );
-
-  const divisoes = await db
-    .select()
-    .from(divisoesTable)
-    .where(eq(divisoesTable.despesaId, despesa.id));
+    const divisoes = await tx.insert(divisoesTable).values(
+      parsed.data.divisoes.map((d) => ({
+        despesaId: despesa.id,
+        participanteId: d.participanteId,
+        valorDevido: d.valorDevido.toFixed(2),
+        porcentagem: d.porcentagem == null ? null : d.porcentagem.toFixed(4),
+        cotas: d.cotas == null ? null : d.cotas.toFixed(4),
+      }))
+    ).returning();
+    return { despesa, divisoes };
+  });
 
   res.status(201).json({
-    ...despesa,
-    valor: parseFloat(despesa.valor),
-    divisoes: divisoes.map((d) => ({
+    ...created.despesa,
+    valor: parseFloat(created.despesa.valor),
+    divisoes: created.divisoes.map((d) => ({
       participanteId: d.participanteId,
       valorDevido: parseFloat(d.valorDevido),
+      porcentagem: d.porcentagem == null ? null : parseFloat(d.porcentagem),
+      cotas: d.cotas == null ? null : parseFloat(d.cotas),
     })),
   });
 
@@ -115,7 +158,7 @@ router.post("/grupos/:grupoId/despesas", async (req, res): Promise<void> => {
     descricao: parsed.data.descricao,
     valor: parsed.data.valor,
     pagoPorId: parsed.data.pagoPorId,
-    pagadorNome: pagoPor[0].nome,
+    pagadorNome: pagoPor.nome,
   }).catch(() => {});
 });
 

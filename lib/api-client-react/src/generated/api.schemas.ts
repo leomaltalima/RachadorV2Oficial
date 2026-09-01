@@ -60,24 +60,90 @@ export interface ParticipanteUpdate {
 
 export interface Divisao {
   participanteId: number;
+  /** @minimum 0 */
   valorDevido: number;
+  /**
+     * @minimum 0
+     * @maximum 100
+     * @nullable
+     */
+  porcentagem?: number | null;
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  cotas?: number | null;
 }
+
+export type DespesaComDivisoesCategoria = typeof DespesaComDivisoesCategoria[keyof typeof DespesaComDivisoesCategoria];
+
+
+export const DespesaComDivisoesCategoria = {
+  Alimentação: 'Alimentação',
+  Transporte: 'Transporte',
+  Hospedagem: 'Hospedagem',
+  Lazer: 'Lazer',
+  Mercado: 'Mercado',
+  Compras: 'Compras',
+  Saúde: 'Saúde',
+  Outros: 'Outros',
+} as const;
+
+export type DespesaComDivisoesTipoDivisao = typeof DespesaComDivisoesTipoDivisao[keyof typeof DespesaComDivisoesTipoDivisao];
+
+
+export const DespesaComDivisoesTipoDivisao = {
+  igual: 'igual',
+  selecionados: 'selecionados',
+  personalizado: 'personalizado',
+  porcentagem: 'porcentagem',
+  cotas: 'cotas',
+} as const;
 
 export interface DespesaComDivisoes {
   id: number;
   descricao: string;
   valor: number;
+  categoria: DespesaComDivisoesCategoria;
+  tipoDivisao: DespesaComDivisoesTipoDivisao;
   pagoPorId: number;
   grupoId: number;
   criadoEm: string;
   divisoes: Divisao[];
 }
 
+export type DespesaInputCategoria = typeof DespesaInputCategoria[keyof typeof DespesaInputCategoria];
+
+
+export const DespesaInputCategoria = {
+  Alimentação: 'Alimentação',
+  Transporte: 'Transporte',
+  Hospedagem: 'Hospedagem',
+  Lazer: 'Lazer',
+  Mercado: 'Mercado',
+  Compras: 'Compras',
+  Saúde: 'Saúde',
+  Outros: 'Outros',
+} as const;
+
+export type DespesaInputTipoDivisao = typeof DespesaInputTipoDivisao[keyof typeof DespesaInputTipoDivisao];
+
+
+export const DespesaInputTipoDivisao = {
+  igual: 'igual',
+  selecionados: 'selecionados',
+  personalizado: 'personalizado',
+  porcentagem: 'porcentagem',
+  cotas: 'cotas',
+} as const;
+
 export interface DespesaInput {
   /** @minLength 1 */
   descricao: string;
   /** @minimum 0.01 */
   valor: number;
+  categoria?: DespesaInputCategoria;
+  tipoDivisao?: DespesaInputTipoDivisao;
   pagoPorId: number;
   /** @minItems 1 */
   divisoes: Divisao[];

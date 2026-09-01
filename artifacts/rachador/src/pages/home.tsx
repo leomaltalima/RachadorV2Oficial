@@ -5,7 +5,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { useGetGrupoByCodigo } from "@workspace/api-client-react"
+import { useGetGrupoByCodigo, getGetGrupoByCodigoQueryKey } from "@workspace/api-client-react"
 import { getSession, setSession, clearSession } from "@/lib/session"
 import { PlusCircle, LogOut, Users, ChevronRight, DoorOpen } from "lucide-react"
 import { formatCurrency } from "@/lib/utils"
@@ -38,7 +38,7 @@ export default function Home() {
   }, [isLoaded, isSignedIn, setLocation])
 
   const { data: grupo, isError } = useGetGrupoByCodigo(codigo, {
-    query: { enabled: codigo.length === 6 }
+    query: { enabled: codigo.length === 6, queryKey: getGetGrupoByCodigoQueryKey(codigo) }
   })
 
   // Whenever a group is found by code, go to identify screen.

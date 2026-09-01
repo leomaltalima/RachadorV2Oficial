@@ -1,6 +1,6 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useLocation, useParams } from "wouter"
-import { useGetGrupo, useCreateDespesa, getListDespesasQueryKey, getGetSaldoQueryKey } from "@workspace/api-client-react"
+import { useGetGrupo, useCreateDespesa, getListDespesasQueryKey, getGetSaldoQueryKey, getGetGrupoQueryKey } from "@workspace/api-client-react"
 import { useQueryClient } from "@tanstack/react-query"
 
 import { Button } from "@/components/ui/button"
@@ -13,9 +13,20 @@ import { formatCurrency } from "@/lib/utils"
 import { getSession } from "@/lib/session"
 import { ReceiptScanner } from "@/components/receipt-scanner"
 
-import { ArrowLeft, Calculator, Users, UserCheck, Check, ScanLine } from "lucide-react"
+import { ArrowLeft, Calculator, Users, UserCheck, Check, ScanLine, Percent, PieChart, Tag } from "lucide-react"
 
-type SplitMode = "equal" | "select" | "custom"
+type SplitMode = "equal" | "select" | "custom" | "percentage" | "shares"
+
+const CATEGORIES = [
+  "Alimentação",
+  "Transporte",
+  "Hospedagem",
+  "Lazer",
+  "Mercado",
+  "Compras",
+  "Saúde",
+  "Outros"
+]
 
 /** Converte dígitos brutos em formato "1.234,56" (centavos primeiro) */
 function formatCurrencyInput(raw: string): string {
@@ -53,7 +64,7 @@ export default function AddExpense() {
   const { toast } = useToast()
   const queryClient = useQueryClient()
 
-  const { data: grupo } = useGetGrupo(grupoId, { query: { enabled: !!grupoId } })
+  const { data: grupo } = useGetGrupo(grupoId, { query: { enabled: !!grupoId, queryKey: getGetGrupoQueryKey(grupoId) } })
   const createDespesa = useCreateDespesa()
 
   const [descricao, setDescricao] = useState("")
@@ -64,6 +75,15 @@ export default function AddExpense() {
   })
   const [splitMode, setSplitMode] = useState<SplitMode>("equal")
   const [showScanner, setShowScanner] = useState(false)
+  const [categoria, setCategoria] = useState<string>(() => {
+    const saved = localStorage.getItem("rachador_last_category")
+    return (saved && CATEGORIES.includes(saved)) ? saved : "Outros"
+  })
+
+  const handleCategoryChange = (val: string) => {
+    setCategoria(val)
+    localStorage.setItem("rachador_last_category", val)
+  }
 
   // For "select" mode – who's splitting (all selected by default after group loads)
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
@@ -71,6 +91,8 @@ export default function AddExpense() {
 
   // For custom split
   const [customSplits, setCustomSplits] = useState<Record<number, string>>({})
+  const [percentageSplits, setPercentageSplits] = useState<Record<number, string>>({})
+  const [shareSplits, setShareSplits] = useState<Record<number, string>>({})
 
   const valor = parseCurrencyMask(valorStr)
 
@@ -100,6 +122,14 @@ export default function AddExpense() {
     setCustomSplits(prev => ({ ...prev, [id]: val }))
   }
 
+  const handlePercentageChange = (id: number, val: string) => {
+    setPercentageSplits(prev => ({ ...prev, [id]: val }))
+  }
+
+  const handleShareChange = (id: number, val: string) => {
+    setShareSplits(prev => ({ ...prev, [id]: val }))
+  }
+
   // Called when receipt scanner applies its result
   const handleReceiptApply = (splits: Record<number, number>, total: number, desc: string) => {
     setCustomSplits(
@@ -119,9 +149,11 @@ export default function AddExpense() {
       return
     }
 
-    let divisoes: { participanteId: number, valorDevido: number }[] = []
+    let divisoes: { participanteId: number, valorDevido: number, porcentagem?: number, cotas?: number }[] = []
+    let tipoDivisao: "igual" | "porcentagem" | "cotas" | "personalizado" | "selecionados" = "igual"
 
     if (splitMode === "equal") {
+      tipoDivisao = "igual"
       const participants = grupo!.participantes
       const perPerson = Number((valor / participants.length).toFixed(2))
       let sum = 0
@@ -135,6 +167,7 @@ export default function AddExpense() {
         return { participanteId: p.id, valorDevido: v }
       })
     } else if (splitMode === "select") {
+      tipoDivisao = "selecionados"
       const included = grupo!.participantes.filter(p => selectedIds.has(p.id))
       if (included.length === 0) {
         toast({ title: "Selecione pelo menos um participante", variant: "destructive" })
@@ -153,7 +186,65 @@ export default function AddExpense() {
         }
         return { participanteId: p.id, valorDevido: v }
       })
+    } else if (splitMode === "percentage") {
+      tipoDivisao = "porcentagem"
+      let sumPct = 0
+      let totalValueAssigned = 0
+      
+      const parsedPct = grupo!.participantes.map(p => {
+        const rawPct = parseFloat(percentageSplits[p.id]?.replace(',', '.') || "0")
+        sumPct += rawPct
+        return { id: p.id, pct: rawPct }
+      })
+      
+      if (Math.abs(sumPct - 100) > 0.05) {
+        toast({ title: "A soma das porcentagens deve ser exatamente 100%", variant: "destructive" })
+        return
+      }
+
+      divisoes = parsedPct.map((p, i) => {
+        if (p.pct === 0) return { participanteId: p.id, valorDevido: 0, porcentagem: 0 }
+        let v = Number(((valor * p.pct) / 100).toFixed(2))
+        
+        const isLastActive = i === parsedPct.findLastIndex(x => x.pct > 0)
+        if (isLastActive) {
+          v = Number((valor - totalValueAssigned).toFixed(2))
+        } else {
+          totalValueAssigned += v
+        }
+        return { participanteId: p.id, valorDevido: v, porcentagem: p.pct }
+      })
+    } else if (splitMode === "shares") {
+      tipoDivisao = "cotas"
+      let sumShares = 0
+      let totalValueAssigned = 0
+      
+      const parsedShares = grupo!.participantes.map(p => {
+        const share = parseFloat(shareSplits[p.id] || "0")
+        sumShares += share
+        return { id: p.id, share }
+      })
+      
+      if (sumShares <= 0) {
+        toast({ title: "A soma das cotas deve ser maior que zero", variant: "destructive" })
+        return
+      }
+
+      divisoes = parsedShares.map((p, i) => {
+        if (p.share === 0) return { participanteId: p.id, valorDevido: 0, cotas: 0 }
+        let v = Number(((valor * p.share) / sumShares).toFixed(2))
+        
+        // For the last non-zero share participant, we adjust to fix rounding
+        const isLastActive = i === parsedShares.findLastIndex(x => x.share > 0)
+        if (isLastActive) {
+          v = Number((valor - totalValueAssigned).toFixed(2))
+        } else {
+          totalValueAssigned += v
+        }
+        return { participanteId: p.id, valorDevido: v, cotas: p.share }
+      })
     } else {
+      tipoDivisao = "personalizado"
       let sum = 0
       divisoes = grupo!.participantes.map(p => {
         const v = parseCurrencyMask(customSplits[p.id] || '')
@@ -171,6 +262,8 @@ export default function AddExpense() {
       data: {
         descricao,
         valor,
+        categoria: categoria as any,
+        tipoDivisao: tipoDivisao as any,
         pagoPorId: Number(pagoPorId),
         divisoes
       }
@@ -217,6 +310,22 @@ export default function AddExpense() {
                 />
               </div>
               <div className="space-y-2">
+                <Label>Categoria</Label>
+                <Select value={categoria} onValueChange={handleCategoryChange}>
+                  <SelectTrigger className="h-12">
+                    <div className="flex items-center gap-2">
+                      <Tag className="w-4 h-4 text-muted-foreground" />
+                      <SelectValue placeholder="Selecione a categoria" />
+                    </div>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CATEGORIES.map(cat => (
+                      <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
                 <Label>Valor Total (R$)</Label>
                 <Input
                   type="text"
@@ -246,7 +355,7 @@ export default function AddExpense() {
           <div className="space-y-4">
             <h2 className="text-lg font-bold">Como dividir?</h2>
 
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
               <Button
                 type="button"
                 variant={splitMode === "equal" ? "default" : "outline"}
@@ -254,7 +363,7 @@ export default function AddExpense() {
                 onClick={() => setSplitMode("equal")}
               >
                 <Users className="w-4 h-4" />
-                <span className="text-xs text-center leading-tight">Igual para todos</span>
+                <span className="text-xs text-center leading-tight">Igual</span>
               </Button>
               <Button
                 type="button"
@@ -263,7 +372,7 @@ export default function AddExpense() {
                 onClick={() => setSplitMode("select")}
               >
                 <UserCheck className="w-4 h-4" />
-                <span className="text-xs text-center leading-tight">Escolher quem divide</span>
+                <span className="text-xs text-center leading-tight">Selecionar</span>
               </Button>
               <Button
                 type="button"
@@ -272,7 +381,25 @@ export default function AddExpense() {
                 onClick={() => setSplitMode("custom")}
               >
                 <Calculator className="w-4 h-4" />
-                <span className="text-xs text-center leading-tight">Valores diferentes</span>
+                <span className="text-xs text-center leading-tight">Valores</span>
+              </Button>
+              <Button
+                type="button"
+                variant={splitMode === "percentage" ? "default" : "outline"}
+                className="h-16 border-2 shadow-none flex flex-col gap-1 items-center justify-center py-2 px-1"
+                onClick={() => setSplitMode("percentage")}
+              >
+                <Percent className="w-4 h-4" />
+                <span className="text-xs text-center leading-tight">Porcentagem</span>
+              </Button>
+              <Button
+                type="button"
+                variant={splitMode === "shares" ? "default" : "outline"}
+                className="h-16 border-2 shadow-none flex flex-col gap-1 items-center justify-center py-2 px-1"
+                onClick={() => setSplitMode("shares")}
+              >
+                <PieChart className="w-4 h-4" />
+                <span className="text-xs text-center leading-tight">Cotas</span>
               </Button>
             </div>
 
@@ -365,6 +492,59 @@ export default function AddExpense() {
                   ))}
                   <div className="text-right text-xs text-muted-foreground pt-2">
                     Total distribuído: R$ {Object.values(customSplits).reduce((sum, v) => sum + parseCurrencyMask(v), 0).toFixed(2)} / {valor.toFixed(2)}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Percentage: enter pct per person */}
+            {splitMode === "percentage" && (
+              <div className="space-y-4 mt-2">
+                <div className="space-y-3">
+                  {grupo.participantes.map(p => (
+                    <div key={p.id} className="flex items-center justify-between gap-4">
+                      <span className="font-medium text-sm w-1/2 truncate">{p.nome}</span>
+                      <div className="relative w-1/2">
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">%</span>
+                        <Input
+                          type="text"
+                          inputMode="decimal"
+                          className="pr-8 text-right font-medium"
+                          placeholder="0"
+                          value={percentageSplits[p.id] || ""}
+                          onChange={e => handlePercentageChange(p.id, e.target.value.replace(/[^0-9,]/g, ''))}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                  <div className="text-right text-xs text-muted-foreground pt-2">
+                    Total: {Object.values(percentageSplits).reduce((sum, v) => sum + parseFloat(v.replace(',', '.') || '0'), 0).toFixed(2)}% / 100%
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Shares: enter shares per person */}
+            {splitMode === "shares" && (
+              <div className="space-y-4 mt-2">
+                <div className="space-y-3">
+                  {grupo.participantes.map(p => (
+                    <div key={p.id} className="flex items-center justify-between gap-4">
+                      <span className="font-medium text-sm w-1/2 truncate">{p.nome}</span>
+                      <div className="relative w-1/2">
+                        <Input
+                          type="text"
+                          inputMode="numeric"
+                          className="text-right font-medium"
+                          placeholder="Ex: 1"
+                          value={shareSplits[p.id] || ""}
+                          onChange={e => handleShareChange(p.id, e.target.value.replace(/\D/g, ''))}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                  <div className="text-right text-xs text-muted-foreground pt-2">
+                    Total de cotas: {Object.values(shareSplits).reduce((sum, v) => sum + parseInt(v || '0', 10), 0)}
                   </div>
                 </div>
               </div>

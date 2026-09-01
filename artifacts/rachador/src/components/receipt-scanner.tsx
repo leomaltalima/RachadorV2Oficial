@@ -3,7 +3,7 @@ import { Camera, Upload, X, Plus, Minus, ChevronDown, ChevronUp, Loader2, Receip
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { formatCurrency } from "@/lib/utils"
-import type { Participante } from "@workspace/api-client"
+import type { Participante } from "@workspace/api-client-react"
 
 export interface ReceiptItem {
   nome: string

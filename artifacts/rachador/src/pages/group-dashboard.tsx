@@ -24,10 +24,23 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
 import { formatCurrency, formatDate } from "@/lib/utils"
 
-import { ArrowLeft, Copy, Plus, Receipt, UserPlus, Trash2, CheckCircle2, ArrowRight, ImagePlus, X, Undo2, Camera, Pencil, UserMinus, Settings } from "lucide-react"
+import { ArrowLeft, Copy, Plus, Receipt, UserPlus, Trash2, CheckCircle2, ArrowRight, ImagePlus, X, Undo2, Camera, Pencil, UserMinus, Settings, Tag } from "lucide-react"
+
+const CATEGORIES = [
+  "Todos",
+  "Alimentação",
+  "Transporte",
+  "Hospedagem",
+  "Lazer",
+  "Mercado",
+  "Compras",
+  "Saúde",
+  "Outros"
+]
 
 // Extended tipo para incluir os campos novos que o servidor retorna
 type GrupoExtended = {
@@ -72,6 +85,7 @@ export default function GroupDashboard() {
   const [updatingGroupImage, setUpdatingGroupImage] = useState(false)
   const [updatingProfileImage, setUpdatingProfileImage] = useState(false)
   const [updatingParticipantImage, setUpdatingParticipantImage] = useState(false)
+  const [categoryFilter, setCategoryFilter] = useState("Todos")
 
   // Creator controls state
   const [isRenameOpen, setIsRenameOpen] = useState(false)
@@ -80,13 +94,13 @@ export default function GroupDashboard() {
   const [removingParticipantId, setRemovingParticipantId] = useState<number | null>(null)
 
   const { data: grupoRaw, isLoading: loadingGrupo } = useGetGrupo(grupoId, {
-    query: { enabled: !!grupoId }
+    query: { enabled: !!grupoId, queryKey: getGetGrupoQueryKey(grupoId) }
   })
   const grupo = grupoRaw as unknown as GrupoExtended | undefined
 
-  const { data: despesas, isLoading: loadingDespesas } = useListDespesas(grupoId, { query: { enabled: !!grupoId } })
-  const { data: saldo, isLoading: loadingSaldo } = useGetSaldo(grupoId, { query: { enabled: !!grupoId } })
-  const { data: pagamentos, isLoading: loadingPagamentos } = useListPagamentos(grupoId, { query: { enabled: !!grupoId } })
+  const { data: despesas, isLoading: loadingDespesas } = useListDespesas(grupoId, { query: { enabled: !!grupoId, queryKey: getListDespesasQueryKey(grupoId) } })
+  const { data: saldo, isLoading: loadingSaldo } = useGetSaldo(grupoId, { query: { enabled: !!grupoId, queryKey: getGetSaldoQueryKey(grupoId) } })
+  const { data: pagamentos, isLoading: loadingPagamentos } = useListPagamentos(grupoId, { query: { enabled: !!grupoId, queryKey: getListPagamentosQueryKey(grupoId) } })
 
   const deleteDespesa = useDeleteDespesa()
   const createPagamento = useCreatePagamento()
@@ -293,6 +307,8 @@ export default function GroupDashboard() {
   const getParticipantName = (id: number) => grupo?.participantes.find(p => p.id === id)?.nome || "Alguém"
   const getParticipantPix = (id: number) => grupo?.participantes.find(p => p.id === id)?.chavePix
 
+  const filteredDespesas = despesas?.filter(d => categoryFilter === "Todos" || ((d as any).categoria || "Outros") === categoryFilter) || []
+
   if (loadingGrupo) return <div className="p-8 text-center text-muted-foreground">Carregando...</div>
   if (!grupo) return <div className="p-8 text-center text-destructive">Grupo não encontrado</div>
 
@@ -405,21 +421,38 @@ export default function GroupDashboard() {
                 Total: {formatCurrency(saldo?.totalGasto || 0)}
               </span>
             </div>
+
+            <div className="flex items-center gap-2 px-1">
+              <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                <SelectTrigger className="h-9 w-full sm:w-[200px]">
+                  <div className="flex items-center gap-2 text-sm">
+                    <Tag className="w-3.5 h-3.5 text-muted-foreground" />
+                    <SelectValue placeholder="Filtrar por categoria" />
+                  </div>
+                </SelectTrigger>
+                <SelectContent>
+                  {CATEGORIES.map(cat => (
+                    <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
             {loadingDespesas ? (
               <div className="p-8 text-center text-muted-foreground text-sm">Carregando despesas...</div>
-            ) : despesas?.length === 0 ? (
+            ) : filteredDespesas.length === 0 ? (
               <Card className="border-dashed bg-transparent mt-4">
                 <CardContent className="flex flex-col items-center justify-center p-8 text-center text-muted-foreground">
                   <div className="w-12 h-12 rounded-full bg-secondary flex items-center justify-center mb-4">
                     <Receipt className="w-6 h-6 text-muted-foreground" />
                   </div>
-                  <p className="font-medium text-foreground">Nenhuma despesa ainda</p>
+                  <p className="font-medium text-foreground">Nenhuma despesa encontrada</p>
                   <p className="text-sm mb-4">Que tal registrar a primeira conta?</p>
                 </CardContent>
               </Card>
             ) : (
               <div className="space-y-3 mt-4">
-                {despesas?.map(despesa => (
+                {filteredDespesas.map(despesa => (
                   <Card key={despesa.id} className="overflow-hidden border-border/60">
                     <div className="p-4 flex items-center gap-4">
                       <div className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center shrink-0">
@@ -427,9 +460,14 @@ export default function GroupDashboard() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <h3 className="font-bold text-foreground truncate">{despesa.descricao}</h3>
-                        <p className="text-sm text-muted-foreground truncate">
-                          Pago por <span className="font-medium text-foreground">{getParticipantName(despesa.pagoPorId)}</span>
-                        </p>
+                        <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground mt-0.5">
+                          <span className="truncate">
+                            Pago por <span className="font-medium text-foreground">{getParticipantName(despesa.pagoPorId)}</span>
+                          </span>
+                          <span className="inline-flex items-center gap-1 text-xs bg-secondary px-1.5 py-0.5 rounded text-muted-foreground font-medium">
+                            <Tag className="w-3 h-3" /> {(despesa as any).categoria || "Outros"}
+                          </span>
+                        </div>
                       </div>
                       <div className="text-right shrink-0">
                         <div className="font-bold text-foreground">{formatCurrency(despesa.valor)}</div>

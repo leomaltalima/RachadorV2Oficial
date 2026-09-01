@@ -5,12 +5,16 @@
  * Rachador - Group expense splitting API
  * OpenAPI spec version: 0.1.0
  */
+import type { DespesaComDivisoesCategoria } from './despesaComDivisoesCategoria';
+import type { DespesaComDivisoesTipoDivisao } from './despesaComDivisoesTipoDivisao';
 import type { Divisao } from './divisao';
 
 export interface DespesaComDivisoes {
   id: number;
   descricao: string;
   valor: number;
+  categoria: DespesaComDivisoesCategoria;
+  tipoDivisao: DespesaComDivisoesTipoDivisao;
   pagoPorId: number;
   grupoId: number;
   criadoEm: Date;

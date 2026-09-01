@@ -96,7 +96,7 @@ export default function CriarGrupoScreen() {
             chavePix: p.pix.trim() || null,
           })),
         },
-      }) as typeof grupo & { participantes: { id: number }[] };
+      }) as any;
 
       // First participant is the creator — set session automatically
       const meuId = grupo.participantes[0]?.id;

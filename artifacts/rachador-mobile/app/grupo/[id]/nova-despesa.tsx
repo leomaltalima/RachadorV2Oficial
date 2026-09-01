@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -15,6 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useQueryClient } from '@tanstack/react-query';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useColors } from '@/hooks/useColors';
 import { useSession } from '@/context/SessionContext';
 import {
@@ -25,9 +26,15 @@ import {
 } from '@workspace/api-client-react';
 import { ReceiptScanner } from '@/components/ReceiptScanner';
 
-type SplitMode = 'equal' | 'select' | 'custom';
+type SplitMode = 'equal' | 'select' | 'percentage' | 'shares' | 'custom';
 
-/** Converte dígitos brutos em formato "1.234,56" (centavos primeiro) */
+const CATEGORIES = [
+  'Alimentação', 'Transporte', 'Hospedagem', 'Lazer',
+  'Mercado', 'Compras', 'Saúde', 'Outros'
+] as const;
+
+type Category = typeof CATEGORIES[number];
+
 function formatCurrencyInput(raw: string): string {
   const digits = raw.replace(/\D/g, '');
   if (!digits) return '';
@@ -39,7 +46,6 @@ function formatCurrencyInput(raw: string): string {
   return `${reaisStr},${centavos.toString().padStart(2, '0')}`;
 }
 
-/** Converte valor numérico em string mascarada */
 function toCurrencyMask(value: number): string {
   const cents = Math.round(value * 100);
   if (cents === 0) return '';
@@ -49,11 +55,40 @@ function toCurrencyMask(value: number): string {
   return `${reaisStr},${centavos.toString().padStart(2, '0')}`;
 }
 
-/** Converte "1.234,56" → 1234.56 */
 function parseCurrencyMask(masked: string): number {
   const digits = masked.replace(/\D/g, '');
   if (!digits) return 0;
   return parseInt(digits, 10) / 100;
+}
+
+function distributeCents(totalValue: number, unroundedAmounts: number[], ids: number[]) {
+  const totalCents = Math.round(totalValue * 100);
+  let sumCents = 0;
+  
+  const devidos = unroundedAmounts.map(v => {
+    const cents = Math.round(v * 100);
+    sumCents += cents;
+    return cents;
+  });
+  
+  let remainder = totalCents - sumCents;
+  
+  let i = 0;
+  while (remainder !== 0 && devidos.length > 0) {
+    if (remainder > 0) {
+      devidos[i]++;
+      remainder--;
+    } else {
+      devidos[i]--;
+      remainder++;
+    }
+    i = (i + 1) % devidos.length;
+  }
+  
+  return devidos.map((c, idx) => ({
+    participanteId: ids[idx],
+    valorDevido: c / 100,
+  }));
 }
 
 export default function NovaDespesaScreen() {
@@ -70,29 +105,46 @@ export default function NovaDespesaScreen() {
   const participantes = grupo?.participantes ?? [];
   const currentParticipanteId = getSession(grupoId);
 
+  const [categoria, setCategoria] = useState<Category>('Outros');
   const [descricao, setDescricao] = useState('');
   const [valorStr, setValorStr] = useState('');
   const [pagoPorId, setPagoPorId] = useState<number | null>(currentParticipanteId);
+  
   const [splitMode, setSplitMode] = useState<SplitMode>('equal');
   const [customShares, setCustomShares] = useState<Record<number, string>>({});
+  const [percentShares, setPercentShares] = useState<Record<number, string>>({});
+  const [cotaShares, setCotaShares] = useState<Record<number, string>>({});
+  
   const [showScanner, setShowScanner] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [selectedInitialized, setSelectedInitialized] = useState(false);
 
-  // Initialize selectedIds (all selected) once grupo loads
+  useEffect(() => {
+    AsyncStorage.getItem('@rachador_lastCategory').then(val => {
+      if (val && CATEGORIES.includes(val as Category)) {
+        setCategoria(val as Category);
+      }
+    }).catch(() => {});
+  }, []);
+
+  const handleSetCategoria = (cat: Category) => {
+    setCategoria(cat);
+    AsyncStorage.setItem('@rachador_lastCategory', cat).catch(() => {});
+  };
+
   if (grupo && !selectedInitialized) {
     setSelectedIds(new Set(grupo.participantes.map((p) => p.id)));
     setSelectedInitialized(true);
   }
 
-  const toggleParticipant = (id: number) => {
+  const toggleParticipant = (pId: number) => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) {
-        if (next.size === 1) return prev; // keep at least one
-        next.delete(id);
+      if (next.has(pId)) {
+        if (next.size === 1) return prev;
+        next.delete(pId);
       } else {
-        next.add(id);
+        next.add(pId);
       }
       return next;
     });
@@ -102,8 +154,8 @@ export default function NovaDespesaScreen() {
 
   const handleReceiptApply = (splits: Record<number, number>, total: number, desc: string) => {
     const newShares: Record<number, string> = {};
-    Object.entries(splits).forEach(([id, val]) => {
-      newShares[Number(id)] = toCurrencyMask(val);
+    Object.entries(splits).forEach(([pId, val]) => {
+      newShares[Number(pId)] = toCurrencyMask(val);
     });
     setCustomShares(newShares);
     setValorStr(toCurrencyMask(total));
@@ -114,13 +166,25 @@ export default function NovaDespesaScreen() {
 
   const divisoesIguais = useMemo(() => {
     if (participantes.length === 0 || valorTotal <= 0) return [];
-    const per = Math.floor((valorTotal / participantes.length) * 100) / 100;
-    const remainder = Math.round((valorTotal - per * participantes.length) * 100) / 100;
-    return participantes.map((p, i) => ({
-      participanteId: p.id,
-      valorDevido: i === 0 ? per + remainder : per,
-    }));
+    const ids = participantes.map(p => p.id);
+    const unrounded = participantes.map(() => valorTotal / participantes.length);
+    return distributeCents(valorTotal, unrounded, ids);
   }, [participantes, valorTotal]);
+
+  const divisoesSelect = useMemo(() => {
+    const included = participantes.filter((p) => selectedIds.has(p.id));
+    if (included.length === 0 || valorTotal <= 0) return participantes.map((p) => ({ participanteId: p.id, valorDevido: 0 }));
+    
+    const ids = included.map(p => p.id);
+    const unrounded = included.map(() => valorTotal / included.length);
+    const devidosIncluded = distributeCents(valorTotal, unrounded, ids);
+    
+    const includedMap = new Map(devidosIncluded.map(d => [d.participanteId, d.valorDevido]));
+    return participantes.map((p) => ({
+      participanteId: p.id,
+      valorDevido: includedMap.get(p.id) ?? 0
+    }));
+  }, [participantes, selectedIds, valorTotal]);
 
   const divisoesCustom = useMemo(() => {
     return participantes.map((p) => ({
@@ -128,41 +192,84 @@ export default function NovaDespesaScreen() {
       valorDevido: parseCurrencyMask(customShares[p.id] ?? ''),
     }));
   }, [participantes, customShares]);
+  
+  const divisoesPercentage = useMemo(() => {
+    if (participantes.length === 0 || valorTotal <= 0) return [];
+    const ids = participantes.map(p => p.id);
+    const pcts = participantes.map(p => parseFloat(percentShares[p.id]?.replace(',', '.') || '0'));
+    const unrounded = pcts.map(pct => valorTotal * (pct / 100));
+    const devidos = distributeCents(valorTotal, unrounded, ids);
+    return devidos.map((d, i) => ({
+      ...d,
+      porcentagem: pcts[i]
+    }));
+  }, [participantes, valorTotal, percentShares]);
+
+  const divisoesShares = useMemo(() => {
+    if (participantes.length === 0 || valorTotal <= 0) return [];
+    const ids = participantes.map(p => p.id);
+    const cotasArr = participantes.map(p => parseFloat(cotaShares[p.id]?.replace(',', '.') || '0'));
+    const totalCotas = cotasArr.reduce((a, b) => a + b, 0);
+    const unrounded = totalCotas > 0 ? cotasArr.map(c => valorTotal * (c / totalCotas)) : cotasArr.map(() => 0);
+    const devidos = distributeCents(valorTotal, unrounded, ids);
+    return devidos.map((d, i) => ({
+      ...d,
+      cotas: cotasArr[i]
+    }));
+  }, [participantes, valorTotal, cotaShares]);
 
   const selectedCount = selectedIds.size;
-  const perPersonSelect = selectedCount > 0 ? valorTotal / selectedCount : 0;
-
-  const divisoesSelect = useMemo(() => {
-    const included = participantes.filter((p) => selectedIds.has(p.id));
-    if (included.length === 0 || valorTotal <= 0) return participantes.map((p) => ({ participanteId: p.id, valorDevido: 0 }));
-    const per = Math.floor((valorTotal / included.length) * 100) / 100;
-    const remainder = Math.round((valorTotal - per * included.length) * 100) / 100;
-    let lastIdx = 0;
-    return participantes.map((p) => {
-      if (!selectedIds.has(p.id)) return { participanteId: p.id, valorDevido: 0 };
-      const isFirst = lastIdx === 0;
-      lastIdx++;
-      return { participanteId: p.id, valorDevido: isFirst ? per + remainder : per };
-    });
-  }, [participantes, selectedIds, valorTotal]);
-
   const customTotal = divisoesCustom.reduce((s, d) => s + d.valorDevido, 0);
   const customValid = Math.abs(customTotal - valorTotal) < 0.02;
+  
+  const percentTotal = Object.values(percentShares).reduce((s, v) => s + parseFloat(v.replace(',', '.') || '0'), 0);
+  const percentValid = Math.abs(percentTotal - 100) < 0.01;
+  
+  const sharesValid = participantes.some(p => {
+    const c = parseFloat(cotaShares[p.id]?.replace(',', '.') || '0');
+    return c > 0;
+  }) && !participantes.some(p => {
+    const c = parseFloat(cotaShares[p.id]?.replace(',', '.') || '0');
+    return c < 0;
+  });
 
   const canSubmit =
     descricao.trim().length > 0 &&
     valorTotal > 0 &&
     pagoPorId !== null &&
-    (splitMode === 'equal' || (splitMode === 'select' && selectedCount > 0) || customValid) &&
+    (
+      splitMode === 'equal' ||
+      (splitMode === 'select' && selectedCount > 0) ||
+      (splitMode === 'custom' && customValid) ||
+      (splitMode === 'percentage' && percentValid) ||
+      (splitMode === 'shares' && sharesValid)
+    ) &&
     !createDespesa.isPending;
 
   const handleSubmit = async () => {
     if (!canSubmit || pagoPorId === null) return;
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    const divisoes =
-      splitMode === 'equal' ? divisoesIguais :
-      splitMode === 'select' ? divisoesSelect :
-      divisoesCustom;
+    
+    let divisoes;
+    let tipoDivisao: 'igual' | 'selecionados' | 'personalizado' | 'porcentagem' | 'cotas' = 'igual';
+    
+    if (splitMode === 'equal') {
+      divisoes = divisoesIguais;
+      tipoDivisao = 'igual';
+    } else if (splitMode === 'select') {
+      divisoes = divisoesSelect;
+      tipoDivisao = 'selecionados';
+    } else if (splitMode === 'percentage') {
+      divisoes = divisoesPercentage;
+      tipoDivisao = 'porcentagem';
+    } else if (splitMode === 'shares') {
+      divisoes = divisoesShares;
+      tipoDivisao = 'cotas';
+    } else {
+      divisoes = divisoesCustom;
+      tipoDivisao = 'personalizado';
+    }
+    
     try {
       await createDespesa.mutateAsync({
         grupoId,
@@ -170,6 +277,8 @@ export default function NovaDespesaScreen() {
           descricao: descricao.trim(),
           valor: valorTotal,
           pagoPorId,
+          categoria: categoria as any,
+          tipoDivisao: tipoDivisao as any,
           divisoes,
         },
       });
@@ -198,6 +307,34 @@ export default function NovaDespesaScreen() {
           onClose={() => setShowScanner(false)}
         />
       )}
+      
+      {/* Category */}
+      <View style={styles.section}>
+        <Text style={[styles.label, { color: colors.mutedForeground }]}>CATEGORIA</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryScroll}>
+          {CATEGORIES.map(cat => {
+            const isSelected = categoria === cat;
+            return (
+              <Pressable
+                key={cat}
+                onPress={() => handleSetCategoria(cat)}
+                style={[
+                  styles.categoryBadge,
+                  {
+                    backgroundColor: isSelected ? colors.primary : colors.card,
+                    borderColor: isSelected ? colors.primary : colors.border,
+                  }
+                ]}
+              >
+                <Text style={[styles.categoryText, { color: isSelected ? colors.primaryForeground : colors.foreground }]}>
+                  {cat}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+      </View>
+
       {/* Description */}
       <View style={styles.section}>
         <Text style={[styles.label, { color: colors.mutedForeground }]}>DESCRIÇÃO</Text>
@@ -214,7 +351,6 @@ export default function NovaDespesaScreen() {
           onChangeText={setDescricao}
           placeholder="Ex: Almoço no restaurante"
           placeholderTextColor={colors.mutedForeground}
-          autoFocus
           returnKeyType="next"
         />
       </View>
@@ -237,7 +373,7 @@ export default function NovaDespesaScreen() {
           placeholder="0,00"
           placeholderTextColor={colors.mutedForeground}
           keyboardType="number-pad"
-          returnKeyType="next"
+          returnKeyType="done"
         />
       </View>
 
@@ -277,11 +413,14 @@ export default function NovaDespesaScreen() {
       {/* Split mode */}
       <View style={styles.section}>
         <Text style={[styles.label, { color: colors.mutedForeground }]}>DIVISÃO</Text>
-        <View style={styles.splitToggle}>
+        
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.splitToggleScroll}>
           {([
-            { mode: 'equal', icon: 'people-outline', label: 'Igual\npara todos' },
-            { mode: 'select', icon: 'person-add-outline', label: 'Escolher\nquem divide' },
-            { mode: 'custom', icon: 'calculator-outline', label: 'Valores\ndiferentes' },
+            { mode: 'equal', icon: 'people-outline', label: 'Igual' },
+            { mode: 'select', icon: 'person-add-outline', label: 'Escolher' },
+            { mode: 'percentage', icon: 'pie-chart-outline', label: 'Porcento' },
+            { mode: 'shares', icon: 'stats-chart-outline', label: 'Cotas' },
+            { mode: 'custom', icon: 'calculator-outline', label: 'Valores' },
           ] as { mode: SplitMode; icon: string; label: string }[]).map(({ mode, icon, label }) => (
             <Pressable
               key={mode}
@@ -290,7 +429,6 @@ export default function NovaDespesaScreen() {
                 {
                   backgroundColor: splitMode === mode ? colors.primary : colors.card,
                   borderColor: splitMode === mode ? colors.primary : colors.border,
-                  flex: 1,
                 },
               ]}
               onPress={() => setSplitMode(mode)}
@@ -303,16 +441,16 @@ export default function NovaDespesaScreen() {
               <Text
                 style={[
                   styles.splitToggleText,
-                  { color: splitMode === mode ? colors.primaryForeground : colors.foreground, textAlign: 'center' },
+                  { color: splitMode === mode ? colors.primaryForeground : colors.foreground },
                 ]}
               >
                 {label}
               </Text>
             </Pressable>
           ))}
-        </View>
+        </ScrollView>
 
-        {/* Select: choose participants */}
+        {/* Select */}
         {splitMode === 'select' && (
           <View style={styles.selectContainer}>
             <Text style={[styles.selectHint, { color: colors.mutedForeground }]}>
@@ -347,20 +485,23 @@ export default function NovaDespesaScreen() {
             })}
             {valorTotal > 0 && selectedCount > 0 && (
               <View style={[styles.splitPreview, { backgroundColor: colors.muted, borderColor: colors.border }]}>
-                <View style={styles.splitRow}>
-                  <Text style={[styles.splitNome, { color: colors.foreground }]}>
-                    Cada um paga ({selectedCount})
-                  </Text>
-                  <Text style={[styles.splitValor, { color: colors.foreground }]}>
-                    R$ {perPersonSelect.toFixed(2)}
-                  </Text>
-                </View>
+                {divisoesSelect.filter(d => d.valorDevido > 0).map((d) => {
+                  const nome = participantes.find((p) => p.id === d.participanteId)?.nome ?? '?';
+                  return (
+                    <View key={d.participanteId} style={styles.splitRow}>
+                      <Text style={[styles.splitNome, { color: colors.foreground }]}>{nome}</Text>
+                      <Text style={[styles.splitValor, { color: colors.mutedForeground }]}>
+                        R$ {d.valorDevido.toFixed(2)}
+                      </Text>
+                    </View>
+                  );
+                })}
               </View>
             )}
           </View>
         )}
 
-        {/* Split details */}
+        {/* Equal */}
         {splitMode === 'equal' && valorTotal > 0 && participantes.length > 0 && (
           <View style={[styles.splitPreview, { backgroundColor: colors.muted, borderColor: colors.border }]}>
             {divisoesIguais.map((d) => {
@@ -376,10 +517,107 @@ export default function NovaDespesaScreen() {
             })}
           </View>
         )}
+        
+        {/* Percentage */}
+        {splitMode === 'percentage' && (
+          <View style={styles.customSplitList}>
+            {participantes.map((p) => {
+              const val = divisoesPercentage.find(d => d.participanteId === p.id)?.valorDevido ?? 0;
+              return (
+                <View key={p.id} style={styles.customSplitRow}>
+                  <Text style={[styles.customSplitNome, { color: colors.foreground, flex: 1 }]}>
+                    {p.nome}
+                  </Text>
+                  <Text style={[styles.percentValue, { color: colors.mutedForeground }]}>
+                    R$ {val.toFixed(2)}
+                  </Text>
+                  <View style={styles.inputWithAddon}>
+                    <TextInput
+                      style={[
+                        styles.customSplitInput,
+                        {
+                          backgroundColor: colors.input,
+                          borderColor: colors.border,
+                          color: colors.foreground,
+                          paddingRight: 24,
+                        },
+                      ]}
+                      value={percentShares[p.id] ?? ''}
+                      onChangeText={(v) => {
+                        const clean = v.replace(/[^0-9,.]/g, '');
+                        setPercentShares((prev) => ({ ...prev, [p.id]: clean }));
+                      }}
+                      placeholder="0"
+                      placeholderTextColor={colors.mutedForeground}
+                      keyboardType="numeric"
+                    />
+                    <Text style={[styles.inputAddon, { color: colors.mutedForeground }]}>%</Text>
+                  </View>
+                </View>
+              );
+            })}
+            {!percentValid && (
+              <View style={styles.customError}>
+                <Ionicons name="warning-outline" size={14} color={colors.destructive} />
+                <Text style={[styles.customErrorText, { color: colors.destructive }]}>
+                  Total: {percentTotal.toFixed(1)}% (precisa ser 100%)
+                </Text>
+              </View>
+            )}
+          </View>
+        )}
+        
+        {/* Shares (Cotas) */}
+        {splitMode === 'shares' && (
+          <View style={styles.customSplitList}>
+            <Text style={[styles.selectHint, { color: colors.mutedForeground }]}>
+              Ex: 1 para adulto, 0.5 para criança
+            </Text>
+            {participantes.map((p) => {
+              const val = divisoesShares.find(d => d.participanteId === p.id)?.valorDevido ?? 0;
+              return (
+                <View key={p.id} style={styles.customSplitRow}>
+                  <Text style={[styles.customSplitNome, { color: colors.foreground, flex: 1 }]}>
+                    {p.nome}
+                  </Text>
+                  <Text style={[styles.percentValue, { color: colors.mutedForeground }]}>
+                    R$ {val.toFixed(2)}
+                  </Text>
+                  <TextInput
+                    style={[
+                      styles.customSplitInput,
+                      {
+                        backgroundColor: colors.input,
+                        borderColor: colors.border,
+                        color: colors.foreground,
+                      },
+                    ]}
+                    value={cotaShares[p.id] ?? ''}
+                    onChangeText={(v) => {
+                      const clean = v.replace(/[^0-9,.]/g, '');
+                      setCotaShares((prev) => ({ ...prev, [p.id]: clean }));
+                    }}
+                    placeholder="0"
+                    placeholderTextColor={colors.mutedForeground}
+                    keyboardType="numeric"
+                  />
+                </View>
+              );
+            })}
+            {!sharesValid && (
+              <View style={styles.customError}>
+                <Ionicons name="warning-outline" size={14} color={colors.destructive} />
+                <Text style={[styles.customErrorText, { color: colors.destructive }]}>
+                  Todas as cotas devem ser positivas.
+                </Text>
+              </View>
+            )}
+          </View>
+        )}
 
+        {/* Custom */}
         {splitMode === 'custom' && (
           <View style={styles.customSplitList}>
-            {/* Scanner button */}
             <Pressable
               style={({ pressed }) => [
                 styles.scanButton,
@@ -472,6 +710,20 @@ const styles = StyleSheet.create({
     fontSize: 11,
     letterSpacing: 1.2,
   },
+  categoryScroll: {
+    gap: 8,
+    paddingBottom: 4,
+  },
+  categoryBadge: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1.5,
+  },
+  categoryText: {
+    fontFamily: 'PlusJakartaSans_600SemiBold',
+    fontSize: 13,
+  },
   input: {
     height: 48,
     borderRadius: 10,
@@ -499,24 +751,23 @@ const styles = StyleSheet.create({
     fontFamily: 'PlusJakartaSans_600SemiBold',
     fontSize: 14,
   },
-  splitToggle: {
-    flexDirection: 'row',
+  splitToggleScroll: {
     gap: 8,
+    paddingBottom: 4,
   },
   splitToggleItem: {
-    height: 60,
+    height: 44,
     borderRadius: 8,
     borderWidth: 1.5,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 4,
-    paddingVertical: 6,
-    paddingHorizontal: 4,
+    flexDirection: 'row',
+    gap: 6,
+    paddingHorizontal: 12,
   },
   splitToggleText: {
     fontFamily: 'PlusJakartaSans_600SemiBold',
-    fontSize: 10,
-    lineHeight: 13,
+    fontSize: 13,
   },
   selectContainer: {
     gap: 8,
@@ -557,6 +808,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    paddingVertical: 2,
   },
   splitNome: {
     fontFamily: 'PlusJakartaSans_500Medium',
@@ -600,6 +852,21 @@ const styles = StyleSheet.create({
     fontFamily: 'PlusJakartaSans_600SemiBold',
     fontSize: 14,
     textAlign: 'right',
+  },
+  inputWithAddon: {
+    position: 'relative',
+    justifyContent: 'center',
+  },
+  inputAddon: {
+    position: 'absolute',
+    right: 10,
+    fontFamily: 'PlusJakartaSans_600SemiBold',
+    fontSize: 14,
+  },
+  percentValue: {
+    fontFamily: 'PlusJakartaSans_500Medium',
+    fontSize: 13,
+    marginRight: 4,
   },
   customError: {
     flexDirection: 'row',
