@@ -14,3 +14,17 @@ mtime_ms = 1788180853759
 storage_uri = "gcs://replit-rams-assets-kirk/rams/assets/repl:04c7e377-56af-4806-845c-2811c87b0109/3432dc22-09f0-4300-8601-8af74350f51c/62ed402c-420b-4c09-99d1-618165634ceb"
 storage_version_token = "1788180865256438"
 content_type = "text/csv"
+
+[[outputs]]
+id = "TPyzUV0popTUnWMk2DZq2"
+uri = "file://artifacts/rachador/public/logo.svg"
+type = "image"
+title = "Logo oficial do Rachador"
+description = "Arquivo SVG da logo atualmente usada no aplicativo Rachador."
+logical_id = "d124afdc-5c7e-48d7-b4f0-e55273c1862d"
+content_hash = "sha256:1ef025f4876dc30ab1ccce5e6a988255cd0f7b83ae30a84a6cbe1930fd502ec3"
+size = 406
+mtime_ms = 1786975880616
+storage_uri = "gcs://replit-rams-assets-kirk/rams/assets/repl:04c7e377-56af-4806-845c-2811c87b0109/d124afdc-5c7e-48d7-b4f0-e55273c1862d/23d47bcb-4785-42a8-a28b-4f43b7124d49"
+storage_version_token = "1788262547489271"
+content_type = "image/svg+xml"
