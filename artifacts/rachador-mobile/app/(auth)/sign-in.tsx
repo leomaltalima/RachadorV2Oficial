@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Image,
   Platform,
   Pressable,
   ScrollView,
@@ -105,9 +106,11 @@ export default function SignInScreen() {
     return (
       <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top + 24, paddingBottom: insets.bottom + 24 }]}>
         <View style={styles.header}>
-          <View style={[styles.logoIcon, { backgroundColor: colors.primary }]}>
-            <Ionicons name="shield-checkmark-outline" size={26} color={colors.primaryForeground} />
-          </View>
+          <Image
+            source={require('../../assets/images/icon.png')}
+            style={styles.logoImage}
+            resizeMode="cover"
+          />
           <Text style={[styles.title, { color: colors.foreground }]}>Verificar conta</Text>
           <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
             Enviamos um código para o seu e-mail
@@ -148,9 +151,11 @@ export default function SignInScreen() {
     >
       {/* Brand header */}
       <View style={styles.header}>
-        <View style={[styles.logoIcon, { backgroundColor: colors.primary }]}>
-          <Ionicons name="cut-outline" size={26} color={colors.primaryForeground} />
-        </View>
+        <Image
+          source={require('../../assets/images/icon.png')}
+          style={styles.logoImage}
+          resizeMode="cover"
+        />
         <Text style={[styles.logoText, { color: colors.foreground }]}>rachador</Text>
         <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>Entre para acessar seus grupos</Text>
       </View>
@@ -245,12 +250,10 @@ const styles = StyleSheet.create({
     gap: 8,
     marginBottom: 8,
   },
-  logoIcon: {
+  logoImage: {
     width: 56,
     height: 56,
     borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
     marginBottom: 4,
   },
   logoText: {

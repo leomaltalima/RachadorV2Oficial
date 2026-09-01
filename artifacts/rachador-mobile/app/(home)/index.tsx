@@ -2,6 +2,7 @@ import React, { useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Image,
   Platform,
   Pressable,
   ScrollView,
@@ -128,9 +129,11 @@ export default function HomeScreen() {
       {/* Brand header */}
       <View style={styles.header}>
         <View style={styles.logoRow}>
-          <View style={[styles.logoIcon, { backgroundColor: colors.primary }]}>
-            <Ionicons name="cut-outline" size={26} color={colors.primaryForeground} />
-          </View>
+          <Image
+            source={require('../../assets/images/icon.png')}
+            style={styles.logoImage}
+            resizeMode="cover"
+          />
           <Text style={[styles.logoText, { color: colors.foreground }]}>rachador</Text>
         </View>
         <Text style={[styles.tagline, { color: colors.mutedForeground }]}>
@@ -310,12 +313,10 @@ const styles = StyleSheet.create({
     gap: 12,
     marginBottom: 4,
   },
-  logoIcon: {
+  logoImage: {
     width: 48,
     height: 48,
     borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   logoText: {
     fontFamily: 'PlusJakartaSans_800ExtraBold',
