@@ -20,6 +20,8 @@ tags:
     description: Balance operations
   - name: pagamentos
     description: Payment operations
+  - name: voz
+    description: Voice expense draft operations
 
 paths:
   /healthz:
@@ -141,6 +143,18 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: User is not a member of the group
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "404":
           description: Group not found
           content:
@@ -230,6 +244,50 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "404":
           description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /grupos/{grupoId}/voice-expenses/parse:
+    post:
+      operationId: parseVoiceExpenses
+      tags: [voz]
+      summary: Transcribe and interpret a voice expense narrative
+      description: Returns a reviewable draft. No expense is persisted by this operation.
+      parameters:
+        - name: grupoId
+          in: path
+          required: true
+          schema:
+            type: number
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VoiceExpenseParseInput"
+      responses:
+        "200":
+          description: Reviewable draft
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VoiceExpenseParseResponse"
+        "400":
+          description: Invalid audio or request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: User is not a member of the group
           content:
             application/json:
               schema:
@@ -579,6 +637,10 @@ components:
           items:
             $ref: "#/components/schemas/Divisao"
           minItems: 1
+        idempotencyKey:
+          type: string
+          minLength: 8
+          maxLength: 160
       required:
         - descricao
         - valor
@@ -674,3 +736,126 @@ components:
         - deId
         - paraId
         - valor
+
+    VoiceExpenseParseInput:
+      type: object
+      properties:
+        audioBase64:
+          type: string
+          minLength: 32
+        mimeType:
+          type: string
+          default: audio/webm
+      required:
+        - audioBase64
+
+    VoiceExpenseDivision:
+      type: object
+      properties:
+        participanteId:
+          type: number
+        nome:
+          type: string
+        valorDevido:
+          type: number
+          minimum: 0
+        porcentagem:
+          type: ["number", "null"]
+        cotas:
+          type: ["number", "null"]
+      required:
+        - participanteId
+        - nome
+        - valorDevido
+        - porcentagem
+        - cotas
+
+    VoiceExpenseConfidence:
+      type: object
+      properties:
+        valor:
+          type: string
+          enum: [alta, média, baixa]
+        pagador:
+          type: string
+          enum: [alta, média, baixa]
+        participantes:
+          type: string
+          enum: [alta, média, baixa]
+        categoria:
+          type: string
+          enum: [alta, média, baixa]
+      required:
+        - valor
+        - pagador
+        - participantes
+        - categoria
+
+    VoiceExpenseDraft:
+      type: object
+      properties:
+        id:
+          type: string
+        descricao:
+          type: string
+        valor:
+          type: ["number", "null"]
+        categoria:
+          type: ["string", "null"]
+        tipoDivisao:
+          type: string
+          enum: [igual, selecionados, personalizado, porcentagem, cotas]
+        pagoPorId:
+          type: ["number", "null"]
+        pagoPorNome:
+          type: ["string", "null"]
+        divisoes:
+          type: array
+          items:
+            $ref: "#/components/schemas/VoiceExpenseDivision"
+        nomesNaoResolvidos:
+          type: array
+          items:
+            type: string
+        precisaConfirmacao:
+          type: array
+          items:
+            type: string
+        confianca:
+          $ref: "#/components/schemas/VoiceExpenseConfidence"
+        observacoes:
+          type: ["string", "null"]
+      required:
+        - id
+        - descricao
+        - valor
+        - categoria
+        - tipoDivisao
+        - pagoPorId
+        - pagoPorNome
+        - divisoes
+        - nomesNaoResolvidos
+        - precisaConfirmacao
+        - confianca
+        - observacoes
+
+    VoiceExpenseParseResponse:
+      type: object
+      properties:
+        transcricao:
+          type: string
+        resumo:
+          type: string
+        despesas:
+          type: array
+          items:
+            $ref: "#/components/schemas/VoiceExpenseDraft"
+        avisos:
+          type: array
+          items:
+            type: string
+      required:
+        - transcricao
+        - resumo
+        - despesas
+        - avisos

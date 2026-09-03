@@ -13,7 +13,8 @@ import { formatCurrency } from "@/lib/utils"
 import { getSession } from "@/lib/session"
 import { ReceiptScanner } from "@/components/receipt-scanner"
 
-import { ArrowLeft, Calculator, Users, UserCheck, Check, ScanLine, Percent, PieChart, Tag } from "lucide-react"
+import { ArrowLeft, Calculator, Users, UserCheck, Check, ScanLine, Percent, PieChart, Tag, Mic } from "lucide-react"
+import { VoiceExpenseFlow } from "@/components/voice-expense-flow"
 
 type SplitMode = "equal" | "select" | "custom" | "percentage" | "shares"
 
@@ -75,6 +76,7 @@ export default function AddExpense() {
   })
   const [splitMode, setSplitMode] = useState<SplitMode>("equal")
   const [showScanner, setShowScanner] = useState(false)
+  const [showVoiceFlow, setShowVoiceFlow] = useState(false)
   const [categoria, setCategoria] = useState<string>(() => {
     const saved = localStorage.getItem("rachador_last_category")
     return (saved && CATEGORIES.includes(saved)) ? saved : "Outros"
@@ -289,6 +291,13 @@ export default function AddExpense() {
         />
       )}
 
+      {showVoiceFlow && (
+        <VoiceExpenseFlow
+          grupo={grupo}
+          onClose={() => setShowVoiceFlow(false)}
+        />
+      )}
+
       <div className="min-h-[100dvh] flex flex-col p-4 sm:p-8 max-w-2xl mx-auto w-full bg-background">
         <header className="flex items-center gap-3 mb-6">
           <Button variant="ghost" size="icon" className="-ml-2" onClick={() => setLocation(`/g/${grupoId}`)}>
@@ -298,6 +307,29 @@ export default function AddExpense() {
         </header>
 
         <div className="space-y-6">
+          <div className="grid grid-cols-1 mb-2">
+            <Button
+              type="button"
+              variant="outline"
+              className="h-20 border-2 border-dashed border-primary/40 bg-primary/5 hover:bg-primary/10 hover:border-primary/60 transition-all text-left group flex items-center justify-start gap-4 px-5 rounded-2xl shadow-sm"
+              onClick={() => setShowVoiceFlow(true)}
+            >
+              <div className="w-12 h-12 rounded-xl bg-primary/15 flex items-center justify-center shrink-0 group-hover:bg-primary/25 transition-colors">
+                <Mic className="w-6 h-6 text-primary" />
+              </div>
+              <div>
+                <p className="font-semibold text-base text-foreground">Adicionar por voz</p>
+                <p className="text-sm text-muted-foreground">A IA entende o que você falar e cria as despesas</p>
+              </div>
+            </Button>
+          </div>
+
+          <div className="flex items-center gap-4 py-2">
+             <div className="h-px bg-border flex-1"></div>
+             <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Ou manualmente</span>
+             <div className="h-px bg-border flex-1"></div>
+          </div>
+
           <Card className="border-border/50 shadow-md">
             <CardContent className="pt-6 space-y-4">
               <div className="space-y-2">

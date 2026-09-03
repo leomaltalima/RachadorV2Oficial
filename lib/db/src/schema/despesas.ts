@@ -1,4 +1,4 @@
-import { pgTable, text, serial, timestamp, integer, numeric } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, integer, numeric, uniqueIndex } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { gruposTable } from "./grupos";
@@ -12,8 +12,11 @@ export const despesasTable = pgTable("despesas", {
   tipoDivisao: text("tipo_divisao").notNull().default("igual"),
   pagoPorId: integer("pago_por_id").notNull().references(() => participantesTable.id),
   grupoId: integer("grupo_id").notNull().references(() => gruposTable.id, { onDelete: "cascade" }),
+  idempotencyKey: text("idempotency_key"),
   criadoEm: timestamp("criado_em", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (table) => [
+  uniqueIndex("despesas_grupo_idempotency_key_idx").on(table.grupoId, table.idempotencyKey),
+]);
 
 export const divisoesTable = pgTable("divisoes", {
   id: serial("id").primaryKey(),

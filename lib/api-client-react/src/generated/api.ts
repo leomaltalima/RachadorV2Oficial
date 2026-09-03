@@ -31,7 +31,9 @@ import type {
   Participante,
   ParticipanteInput,
   ParticipanteUpdate,
-  Saldo
+  Saldo,
+  VoiceExpenseParseInput,
+  VoiceExpenseParseResponse
 } from './api.schemas';
 
 import { customFetch } from '../custom-fetch';
@@ -655,6 +657,79 @@ export const useCreateDespesa = <TError = ErrorType<ErrorResponse>,
         TContext
       > => {
       return useMutation(getCreateDespesaMutationOptions(options));
+    }
+
+export const getParseVoiceExpensesUrl = (grupoId: number,) => {
+
+
+
+
+  return `/api/grupos/${grupoId}/voice-expenses/parse`
+}
+
+/**
+ * Returns a reviewable draft. No expense is persisted by this operation.
+ * @summary Transcribe and interpret a voice expense narrative
+ */
+export const parseVoiceExpenses = async (grupoId: number,
+    voiceExpenseParseInput: VoiceExpenseParseInput, options?: Parameters<typeof customFetch>[1]): Promise<VoiceExpenseParseResponse> => {
+
+  return customFetch<VoiceExpenseParseResponse>(getParseVoiceExpensesUrl(grupoId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(voiceExpenseParseInput)
+  }
+);}
+
+
+
+
+
+export const getParseVoiceExpensesMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof parseVoiceExpenses>>, TError,{grupoId: number;data: BodyType<VoiceExpenseParseInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof parseVoiceExpenses>>, TError,{grupoId: number;data: BodyType<VoiceExpenseParseInput>}, TContext> => {
+
+const mutationKey = ['parseVoiceExpenses'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof parseVoiceExpenses>>, {grupoId: number;data: BodyType<VoiceExpenseParseInput>}> = (props) => {
+          const {grupoId,data} = props ?? {};
+
+          return  parseVoiceExpenses(grupoId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ParseVoiceExpensesMutationResult = NonNullable<Awaited<ReturnType<typeof parseVoiceExpenses>>>
+    export type ParseVoiceExpensesMutationBody = BodyType<VoiceExpenseParseInput>
+    export type ParseVoiceExpensesMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Transcribe and interpret a voice expense narrative
+ */
+export const useParseVoiceExpenses = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof parseVoiceExpenses>>, TError,{grupoId: number;data: BodyType<VoiceExpenseParseInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof parseVoiceExpenses>>,
+        TError,
+        {grupoId: number;data: BodyType<VoiceExpenseParseInput>},
+        TContext
+      > => {
+      return useMutation(getParseVoiceExpensesMutationOptions(options));
     }
 
 export const getDeleteDespesaUrl = (id: number,) => {

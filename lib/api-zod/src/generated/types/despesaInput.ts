@@ -19,4 +19,9 @@ export interface DespesaInput {
   pagoPorId: number;
   /** @minItems 1 */
   divisoes: Divisao[];
+  /**
+     * @minLength 8
+     * @maxLength 160
+     */
+  idempotencyKey?: string;
 }

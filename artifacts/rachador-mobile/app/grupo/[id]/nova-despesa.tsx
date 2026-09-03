@@ -21,10 +21,15 @@ import { useSession } from '@/context/SessionContext';
 import {
   useGetGrupo,
   useCreateDespesa,
+  useParseVoiceExpenses,
   getListDespesasQueryKey,
   getGetSaldoQueryKey,
 } from '@workspace/api-client-react';
+import type { VoiceExpenseParseResponse, DespesaInput } from '@workspace/api-client-react';
 import { ReceiptScanner } from '@/components/ReceiptScanner';
+import { VoiceRecorder } from '@/components/VoiceRecorder';
+import { VoiceExpenseReview } from '@/components/VoiceExpenseReview';
+import { formatCurrencyInput, toCurrencyMask, parseCurrencyMask, distributeCents } from '@/utils/currency';
 
 type SplitMode = 'equal' | 'select' | 'percentage' | 'shares' | 'custom';
 
@@ -34,62 +39,6 @@ const CATEGORIES = [
 ] as const;
 
 type Category = typeof CATEGORIES[number];
-
-function formatCurrencyInput(raw: string): string {
-  const digits = raw.replace(/\D/g, '');
-  if (!digits) return '';
-  const num = parseInt(digits, 10);
-  if (num === 0) return '';
-  const reais = Math.floor(num / 100);
-  const centavos = num % 100;
-  const reaisStr = reais > 0 ? reais.toLocaleString('pt-BR') : '0';
-  return `${reaisStr},${centavos.toString().padStart(2, '0')}`;
-}
-
-function toCurrencyMask(value: number): string {
-  const cents = Math.round(value * 100);
-  if (cents === 0) return '';
-  const reais = Math.floor(cents / 100);
-  const centavos = cents % 100;
-  const reaisStr = reais > 0 ? reais.toLocaleString('pt-BR') : '0';
-  return `${reaisStr},${centavos.toString().padStart(2, '0')}`;
-}
-
-function parseCurrencyMask(masked: string): number {
-  const digits = masked.replace(/\D/g, '');
-  if (!digits) return 0;
-  return parseInt(digits, 10) / 100;
-}
-
-function distributeCents(totalValue: number, unroundedAmounts: number[], ids: number[]) {
-  const totalCents = Math.round(totalValue * 100);
-  let sumCents = 0;
-  
-  const devidos = unroundedAmounts.map(v => {
-    const cents = Math.round(v * 100);
-    sumCents += cents;
-    return cents;
-  });
-  
-  let remainder = totalCents - sumCents;
-  
-  let i = 0;
-  while (remainder !== 0 && devidos.length > 0) {
-    if (remainder > 0) {
-      devidos[i]++;
-      remainder--;
-    } else {
-      devidos[i]--;
-      remainder++;
-    }
-    i = (i + 1) % devidos.length;
-  }
-  
-  return devidos.map((c, idx) => ({
-    participanteId: ids[idx],
-    valorDevido: c / 100,
-  }));
-}
 
 export default function NovaDespesaScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -118,6 +67,47 @@ export default function NovaDespesaScreen() {
   const [showScanner, setShowScanner] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [selectedInitialized, setSelectedInitialized] = useState(false);
+
+  // Voice recording state
+  const [viewMode, setViewMode] = useState<'manual' | 'voice_recording' | 'voice_review'>('manual');
+  const [voiceData, setVoiceData] = useState<VoiceExpenseParseResponse | null>(null);
+  const [isProcessingVoice, setIsProcessingVoice] = useState(false);
+  const [isConfirmingVoice, setIsConfirmingVoice] = useState(false);
+  const parseVoice = useParseVoiceExpenses();
+
+  const handleProcessVoice = async (base64: string, mimeType: string) => {
+    setIsProcessingVoice(true);
+    try {
+      const res = await parseVoice.mutateAsync({ grupoId, data: { audioBase64: base64, mimeType } });
+      setVoiceData(res);
+      setViewMode('voice_review');
+    } catch(e) {
+      Alert.alert('Erro', 'Não foi possível interpretar o áudio.');
+      setViewMode('manual');
+    } finally {
+      setIsProcessingVoice(false);
+    }
+  };
+
+  const handleConfirmVoiceExpenses = async (expenses: DespesaInput[]) => {
+    setIsConfirmingVoice(true);
+    let successCount = 0;
+    try {
+      for (const exp of expenses) {
+        await createDespesa.mutateAsync({ grupoId, data: exp });
+        successCount++;
+      }
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      queryClient.invalidateQueries({ queryKey: getListDespesasQueryKey(grupoId) });
+      queryClient.invalidateQueries({ queryKey: getGetSaldoQueryKey(grupoId) });
+      router.back();
+    } catch (e) {
+      Alert.alert('Erro parcial', `Foram adicionadas ${successCount} despesa(s) de ${expenses.length}. A tentativa falhou antes de terminar.`);
+    } finally {
+      setIsConfirmingVoice(false);
+    }
+    return successCount;
+  };
 
   useEffect(() => {
     AsyncStorage.getItem('@rachador_lastCategory').then(val => {
@@ -291,6 +281,29 @@ export default function NovaDespesaScreen() {
     }
   };
 
+  if (viewMode === 'voice_recording') {
+    return (
+      <VoiceRecorder
+        onProcess={handleProcessVoice}
+        onCancel={() => setViewMode('manual')}
+        isProcessing={isProcessingVoice}
+      />
+    );
+  }
+
+  if (viewMode === 'voice_review' && voiceData) {
+    return (
+      <VoiceExpenseReview
+        parsedData={voiceData}
+        participantes={participantes}
+        currentParticipanteId={currentParticipanteId ?? 0}
+        onConfirm={handleConfirmVoiceExpenses}
+        onCancel={() => setViewMode('manual')}
+        isSubmitting={isConfirmingVoice}
+      />
+    );
+  }
+
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: colors.background }}
@@ -307,6 +320,22 @@ export default function NovaDespesaScreen() {
           onClose={() => setShowScanner(false)}
         />
       )}
+
+      {/* Voice Entry Button */}
+      <Pressable
+        style={({ pressed }) => [
+          styles.voiceButton,
+          {
+            backgroundColor: colors.primary + '1A',
+            borderColor: colors.primary,
+            opacity: pressed ? 0.75 : 1,
+          },
+        ]}
+        onPress={() => setViewMode('voice_recording')}
+      >
+        <Ionicons name="mic-outline" size={20} color={colors.primary} />
+        <Text style={[styles.voiceButtonText, { color: colors.primary }]}>Adicionar por voz</Text>
+      </Pressable>
       
       {/* Category */}
       <View style={styles.section}>
@@ -701,6 +730,19 @@ const styles = StyleSheet.create({
   content: {
     padding: 20,
     gap: 24,
+  },
+  voiceButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    height: 48,
+    borderRadius: 12,
+    borderWidth: 1.5,
+  },
+  voiceButtonText: {
+    fontFamily: 'PlusJakartaSans_700Bold',
+    fontSize: 15,
   },
   section: {
     gap: 10,

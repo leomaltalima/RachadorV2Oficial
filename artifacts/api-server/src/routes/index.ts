@@ -8,6 +8,7 @@ import pagamentosRouter from "./pagamentos";
 import meRouter from "./me";
 import scanReceiptRouter from "./scanReceipt";
 import pushTokensRouter from "./push_tokens";
+import voiceExpensesRouter from "./voiceExpenses";
 
 const router: IRouter = Router();
 
@@ -20,5 +21,6 @@ router.use(saldoRouter);
 router.use(pagamentosRouter);
 router.use(scanReceiptRouter);
 router.use(pushTokensRouter);
+router.use(voiceExpensesRouter);
 
 export default router;

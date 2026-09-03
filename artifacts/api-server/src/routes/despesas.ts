@@ -1,5 +1,6 @@
 import { Router, type IRouter } from "express";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
+import { getAuth } from "@clerk/express";
 import { db, despesasTable, divisoesTable, gruposTable, participantesTable } from "@workspace/db";
 import {
   CreateDespesaBody,
@@ -69,11 +70,55 @@ router.post("/grupos/:grupoId/despesas", async (req, res): Promise<void> => {
     return;
   }
 
+  const { userId } = getAuth(req);
+  if (!userId) {
+    res.status(401).json({ error: "Faça login para adicionar despesas." });
+    return;
+  }
+
   const participantesGrupo = await db
-    .select({ id: participantesTable.id, nome: participantesTable.nome })
+    .select({
+      id: participantesTable.id,
+      nome: participantesTable.nome,
+      clerkUserId: participantesTable.clerkUserId,
+    })
     .from(participantesTable)
     .where(eq(participantesTable.grupoId, params.data.grupoId));
   const participantesIds = new Set(participantesGrupo.map((p) => p.id));
+  const isMember =
+    grupo.criadorClerkUserId === userId ||
+    participantesGrupo.some((participante) => participante.clerkUserId === userId);
+  if (!isMember) {
+    res.status(403).json({ error: "Você não pertence a este grupo." });
+    return;
+  }
+
+  if (parsed.data.idempotencyKey) {
+    const [existing] = await db
+      .select()
+      .from(despesasTable)
+      .where(and(
+        eq(despesasTable.grupoId, params.data.grupoId),
+        eq(despesasTable.idempotencyKey, parsed.data.idempotencyKey),
+      ));
+    if (existing) {
+      const existingDivisions = await db
+        .select()
+        .from(divisoesTable)
+        .where(eq(divisoesTable.despesaId, existing.id));
+      res.status(200).json({
+        ...existing,
+        valor: parseFloat(existing.valor),
+        divisoes: existingDivisions.map((division) => ({
+          participanteId: division.participanteId,
+          valorDevido: parseFloat(division.valorDevido),
+          porcentagem: division.porcentagem == null ? null : parseFloat(division.porcentagem),
+          cotas: division.cotas == null ? null : parseFloat(division.cotas),
+        })),
+      });
+      return;
+    }
+  }
   const pagoPor = participantesGrupo.find((p) => p.id === parsed.data.pagoPorId);
   const idsDivisao = parsed.data.divisoes.map((d) => d.participanteId);
 
@@ -120,14 +165,23 @@ router.post("/grupos/:grupoId/despesas", async (req, res): Promise<void> => {
   }
 
   const created = await db.transaction(async (tx) => {
-    const [despesa] = await tx.insert(despesasTable).values({
-      descricao: parsed.data.descricao,
-      valor: parsed.data.valor.toFixed(2),
-      categoria: parsed.data.categoria ?? "Outros",
-      tipoDivisao,
-      pagoPorId: parsed.data.pagoPorId,
-      grupoId: params.data.grupoId,
-    }).returning();
+    const [despesa] = await tx
+      .insert(despesasTable)
+      .values({
+        descricao: parsed.data.descricao,
+        valor: parsed.data.valor.toFixed(2),
+        categoria: parsed.data.categoria ?? "Outros",
+        tipoDivisao,
+        pagoPorId: parsed.data.pagoPorId,
+        grupoId: params.data.grupoId,
+        idempotencyKey: parsed.data.idempotencyKey ?? null,
+      })
+      .onConflictDoNothing({
+        target: [despesasTable.grupoId, despesasTable.idempotencyKey],
+      })
+      .returning();
+
+    if (!despesa) return null;
 
     const divisoes = await tx.insert(divisoesTable).values(
       parsed.data.divisoes.map((d) => ({
@@ -140,6 +194,38 @@ router.post("/grupos/:grupoId/despesas", async (req, res): Promise<void> => {
     ).returning();
     return { despesa, divisoes };
   });
+
+  if (!created && parsed.data.idempotencyKey) {
+    const [existing] = await db
+      .select()
+      .from(despesasTable)
+      .where(and(
+        eq(despesasTable.grupoId, params.data.grupoId),
+        eq(despesasTable.idempotencyKey, parsed.data.idempotencyKey),
+      ));
+    if (existing) {
+      const existingDivisions = await db
+        .select()
+        .from(divisoesTable)
+        .where(eq(divisoesTable.despesaId, existing.id));
+      res.status(200).json({
+        ...existing,
+        valor: parseFloat(existing.valor),
+        divisoes: existingDivisions.map((division) => ({
+          participanteId: division.participanteId,
+          valorDevido: parseFloat(division.valorDevido),
+          porcentagem: division.porcentagem == null ? null : parseFloat(division.porcentagem),
+          cotas: division.cotas == null ? null : parseFloat(division.cotas),
+        })),
+      });
+      return;
+    }
+  }
+
+  if (!created) {
+    res.status(409).json({ error: "Não foi possível confirmar a despesa." });
+    return;
+  }
 
   res.status(201).json({
     ...created.despesa,

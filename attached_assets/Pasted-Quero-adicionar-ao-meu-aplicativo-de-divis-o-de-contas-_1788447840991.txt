@@ -1,0 +1,868 @@
+Quero adicionar ao meu aplicativo de divisão de contas entre amigos uma nova funcionalidade baseada em Inteligência Artificial chamada, provisoriamente, **“Adicionar gastos por voz”**.
+
+IMPORTANTE: antes de implementar, analise toda a arquitetura atual do projeto, banco de dados, autenticação, grupos, participantes, cadastro de gastos, sistema de divisão, saldos e pagamentos já existentes.
+
+Não recrie funcionalidades que já existem e não quebre os fluxos atuais. A nova funcionalidade deve utilizar e integrar-se ao sistema atual de criação de gastos.
+
+# OBJETIVO DA FUNCIONALIDADE
+
+Quero permitir que um usuário grave um áudio falando naturalmente tudo o que aconteceu em relação aos gastos de um período, viagem, jantar, churrasco ou evento.
+
+Exemplo de áudio:
+
+“Hoje fomos jantar. Eu paguei 320 reais no restaurante para mim, João, Pedro e Maria. A Maria não bebeu, então dos 80 reais de bebida ela não participa. Depois o Pedro pagou 60 reais de Uber para mim, para ele e para o João. Também comprei 45 reais de sobremesa, mas foi só para mim e para a Maria.”
+
+A Inteligência Artificial deve:
+
+1. receber o áudio;
+2. transcrever o áudio;
+3. interpretar semanticamente o que o usuário falou;
+4. identificar cada gasto mencionado;
+5. identificar quem pagou cada gasto;
+6. identificar os participantes de cada gasto;
+7. identificar exceções de participação;
+8. identificar valores;
+9. identificar categorias;
+10. interpretar regras de divisão;
+11. transformar tudo em dados estruturados;
+12. calcular uma proposta de divisão;
+13. mostrar uma tela de revisão;
+14. permitir correções;
+15. somente depois da confirmação do usuário criar os gastos reais no banco.
+
+O ponto mais importante é que a IA NUNCA deve cadastrar os gastos automaticamente sem que o usuário veja e confirme primeiro.
+
+# 1. BOTÃO “ADICIONAR POR VOZ”
+
+Na área onde atualmente é possível adicionar um gasto, criar uma nova opção:
+
+“Adicionar por voz”
+
+ou
+
+“Contar gastos para a IA”
+
+Ao clicar, abrir uma interface simples de gravação.
+
+Mostrar:
+
+* botão iniciar gravação;
+* contador do tempo;
+* indicador de gravação;
+* botão pausar;
+* botão continuar;
+* botão cancelar;
+* botão finalizar gravação.
+
+A interface deve funcionar bem principalmente em celulares.
+
+# 2. ÁUDIO
+
+Utilizar os recursos disponíveis no navegador para capturar o áudio do microfone.
+
+Solicitar permissão de microfone adequadamente.
+
+Caso o usuário negue a permissão, mostrar uma mensagem amigável.
+
+Não armazenar áudio permanentemente sem necessidade.
+
+Se o áudio precisar ser salvo temporariamente para processamento, excluí-lo depois que o processamento for concluído, salvo se a arquitetura exigir outra abordagem.
+
+# 3. TRANSCRIÇÃO COM IA
+
+Depois que o usuário finalizar a gravação, enviar o áudio para um serviço/modelo de transcrição adequado.
+
+A transcrição deve funcionar prioritariamente em português brasileiro.
+
+O sistema deve lidar razoavelmente bem com linguagem coloquial, como:
+
+“eu paguei”
+
+“foi o João que bancou”
+
+“divide entre todo mundo”
+
+“a Maria não participou”
+
+“o Pedro tomou só a cerveja”
+
+“o Uber foi só eu, João e Ana”
+
+“deu uns 280 reais”
+
+“eu paguei metade e o João pagou o resto”
+
+Depois da transcrição, guardar o texto retornado para processamento.
+
+# 4. INTERPRETAÇÃO DO TEXTO COM IA
+
+Depois da transcrição, enviar o texto para uma IA capaz de transformar a narrativa em dados estruturados.
+
+A IA NÃO deve responder apenas com texto.
+
+Ela deve gerar uma estrutura JSON validável.
+
+Exemplo:
+
+{
+"expenses": [
+{
+"description": "Jantar",
+"amount": 320.00,
+"category": "Alimentação",
+"paid_by": "Leo",
+"participants": [
+"Leo",
+"João",
+"Pedro",
+"Maria"
+],
+"division_type": "custom",
+"rules": [
+{
+"description": "R$ 80 correspondem a bebidas",
+"participants": [
+"Leo",
+"João",
+"Pedro"
+],
+"excluded": [
+"Maria"
+]
+}
+]
+},
+{
+"description": "Uber",
+"amount": 60.00,
+"category": "Transporte",
+"paid_by": "Pedro",
+"participants": [
+"Leo",
+"Pedro",
+"João"
+],
+"division_type": "equal"
+},
+{
+"description": "Sobremesa",
+"amount": 45.00,
+"category": "Alimentação",
+"paid_by": "Leo",
+"participants": [
+"Leo",
+"Maria"
+],
+"division_type": "equal"
+}
+]
+}
+
+Esse JSON é apenas um exemplo.
+
+Adapte a estrutura para os models e banco de dados atualmente utilizados no projeto.
+
+# 5. USAR OS PARTICIPANTES REAIS DO GRUPO
+
+A IA não deve inventar usuários.
+
+Antes de interpretar o áudio, fornecer ao modelo a lista dos participantes reais do grupo atual.
+
+Por exemplo:
+
+Participantes disponíveis:
+
+* Leo — id 12
+* João — id 15
+* Maria — id 19
+* Pedro — id 22
+
+A IA deve tentar relacionar nomes citados no áudio aos participantes existentes.
+
+Depois da resposta da IA, o backend deve transformar os nomes em IDs reais.
+
+Nunca confiar cegamente no ID retornado por um modelo.
+
+A associação final deve ser feita pela aplicação.
+
+# 6. NOMES AMBÍGUOS
+
+Se houver nomes semelhantes, não escolher silenciosamente.
+
+Exemplo:
+
+* João Silva
+* João Pedro
+
+Se o usuário disser apenas:
+
+“João pagou”
+
+o sistema deve marcar:
+
+“Precisamos confirmar qual João você quis dizer.”
+
+Mostrar as opções para o usuário escolher.
+
+# 7. INFORMAÇÕES AUSENTES
+
+A IA deve identificar quando não possui informações suficientes.
+
+Exemplo:
+
+“Ontem a gente gastou 400 reais no restaurante.”
+
+Não sabemos:
+
+* quem pagou;
+* quem participou.
+
+Nesse caso, NÃO inventar.
+
+Mostrar na revisão:
+
+Restaurante — R$ 400
+
+Quem pagou?
+[Selecionar]
+
+Quem participou?
+[Selecionar participantes]
+
+# 8. CONFIANÇA DA IA
+
+Para cada informação importante extraída, gostaria que o sistema pudesse trabalhar internamente com um nível de confiança.
+
+Por exemplo:
+
+* valor: alta confiança;
+* pagador: alta confiança;
+* participantes: média confiança;
+* categoria: alta confiança.
+
+Não é obrigatório mostrar números percentuais ao usuário.
+
+Na interface, informações consideradas incertas podem ser destacadas como:
+
+“Confirme esta informação”
+
+ou
+
+“Não temos certeza sobre isso.”
+
+# 9. TELA DE REVISÃO
+
+Essa parte é extremamente importante.
+
+Depois da IA interpretar o áudio, NÃO cadastrar nada imediatamente.
+
+Mostrar:
+
+“Entendi estes gastos:”
+
+GASTO 1
+
+Restaurante
+
+R$ 320,00
+
+Pago por: Leo
+
+Participantes:
+Leo
+João
+Pedro
+Maria
+
+Detalhe:
+R$ 80 de bebidas divididos apenas entre Leo, João e Pedro.
+
+Categoria:
+Alimentação
+
+[Editar]
+
+GASTO 2
+
+Uber
+
+R$ 60,00
+
+Pago por: Pedro
+
+Participantes:
+Leo
+Pedro
+João
+
+Divisão:
+Igualmente
+
+[Editar]
+
+GASTO 3
+
+Sobremesa
+
+R$ 45,00
+
+Pago por: Leo
+
+Participantes:
+Leo
+Maria
+
+Divisão:
+Igualmente
+
+[Editar]
+
+No final:
+
+“3 gastos encontrados”
+
+“Total identificado: R$ 425,00”
+
+Botões:
+
+[Cancelar]
+
+[Editar]
+
+[Confirmar e adicionar 3 gastos]
+
+# 10. EDIÇÃO ANTES DA CONFIRMAÇÃO
+
+O usuário deve conseguir editar qualquer informação interpretada pela IA:
+
+* descrição;
+* valor;
+* categoria;
+* pagador;
+* participantes;
+* tipo de divisão;
+* valores individuais;
+* porcentagens;
+* cotas;
+* observações.
+
+Também deve ser possível:
+
+* excluir um gasto interpretado incorretamente;
+* adicionar manualmente um gasto que a IA deixou de identificar.
+
+# 11. CÁLCULO DA DIVISÃO
+
+Não peça para o modelo de IA fazer sozinho toda a matemática financeira final se essa lógica já existir no aplicativo.
+
+O ideal é:
+
+IA = interpretar linguagem natural.
+
+Backend = validar e calcular valores.
+
+Utilizar as funções já existentes de divisão:
+
+* igual;
+* por valor;
+* por porcentagem;
+* por cotas;
+* divisões personalizadas.
+
+Assim reduzimos erros matemáticos.
+
+# 12. INTERPRETAÇÃO DE EXCEÇÕES
+
+Quero que a IA consiga entender situações como:
+
+“Todo mundo participou, menos a Maria.”
+
+“O João não bebeu.”
+
+“O Uber foi só eu, Pedro e Ana.”
+
+“A pizza foi para todo mundo.”
+
+“A bebida foi só dos meninos.”
+
+“A sobremesa foi minha e da Ana.”
+
+“O Pedro pagou metade e eu paguei metade.”
+
+“Eu paguei R$ 150 e o João pagou os outros R$ 100.”
+
+“A taxa de serviço divide proporcionalmente.”
+
+“A Ana só participou do almoço, não do Uber.”
+
+Quando houver mais de um pagador para um mesmo gasto, verificar se o sistema atual suporta isso.
+
+Se não suportar, implementar uma solução adequada ou criar gastos separados de maneira transparente.
+
+# 13. CONVERSÃO DE LINGUAGEM NATURAL
+
+A IA deve interpretar valores falados naturalmente.
+
+Exemplos:
+
+“cinquenta reais”
+
+→ 50.00
+
+“cento e vinte e cinco”
+
+→ 125.00
+
+“duzentos e cinquenta reais”
+
+→ 250.00
+
+“trinta reais e cinquenta centavos”
+
+→ 30.50
+
+“mil e duzentos”
+
+→ 1200.00
+
+Aplicar validações depois da conversão.
+
+# 14. CATEGORIZAÇÃO AUTOMÁTICA
+
+A IA pode sugerir automaticamente categorias.
+
+Exemplos:
+
+Restaurante → Alimentação
+
+Uber → Transporte
+
+Hotel → Hospedagem
+
+Supermercado → Mercado
+
+Cinema → Lazer
+
+Não impedir o usuário de alterar a categoria sugerida.
+
+# 15. DATAS
+
+A IA deve conseguir interpretar referências simples de data.
+
+Por exemplo:
+
+“Ontem gastamos R$ 300 no restaurante.”
+
+“Hoje o Pedro pagou o Uber.”
+
+“Na sexta eu paguei o hotel.”
+
+Converter para a data adequada quando a referência for suficientemente clara.
+
+Se houver ambiguidade, pedir confirmação na tela de revisão.
+
+# 16. CONTEXTO DO USUÁRIO
+
+A IA deve saber quem está gravando.
+
+Se o usuário logado for Leo e disser:
+
+“Eu paguei R$ 100.”
+
+interpretar:
+
+paid_by = Leo
+
+Se disser:
+
+“Eu e João dividimos.”
+
+interpretar “eu” como o usuário autenticado.
+
+Nunca permitir que o frontend envie arbitrariamente a identidade do usuário sem validação no backend.
+
+# 17. RESPOSTA NATURAL DA IA
+
+Depois do processamento, antes da revisão, pode existir uma pequena resposta como:
+
+“Entendi 4 gastos, totalizando R$ 780,50. Encontrei uma informação que precisa da sua confirmação.”
+
+Evitar textos longos.
+
+O objetivo é levar o usuário rapidamente para a revisão.
+
+# 18. PERGUNTAS PARA CORRIGIR AMBIGUIDADES
+
+Como melhoria, criar suporte para pequenas perguntas de esclarecimento.
+
+Exemplo:
+
+Usuário grava:
+
+“João pagou R$ 200 no jantar.”
+
+IA detecta que existem dois Joões.
+
+Mostrar:
+
+“Qual João pagou?”
+
+[João Silva]
+
+[João Pedro]
+
+Outro exemplo:
+
+“Gastamos R$ 100 no Uber.”
+
+Pergunta:
+
+“Quem pagou o Uber?”
+
+Após a resposta, atualizar a estrutura temporária sem precisar processar tudo novamente, se possível.
+
+# 19. SEGURANÇA CONTRA ALUCINAÇÕES
+
+Muito importante:
+
+A IA nunca deve:
+
+* inventar participantes;
+* inventar valores;
+* inventar gastos;
+* inventar pagadores;
+* assumir informações críticas sem sinalizar;
+* cadastrar gastos sem confirmação;
+* confiar em IDs produzidos pelo modelo.
+
+Todos os dados retornados devem passar por validação no backend.
+
+# 20. VALIDAÇÃO DO JSON
+
+Utilizar JSON Schema, Zod, Pydantic ou ferramenta equivalente já presente na stack.
+
+A resposta da IA deve ser validada.
+
+Se o modelo retornar uma estrutura inválida:
+
+* tentar reparar/reestruturar de maneira segura;
+* ou informar ao usuário que o áudio não pôde ser interpretado.
+
+Nunca salvar JSON inválido no banco.
+
+# 21. PROMPT DO MODELO
+
+Criar um prompt de sistema específico para a IA responsável pela interpretação.
+
+Algo conceitualmente semelhante a:
+
+“Você é um assistente especializado em interpretar narrativas de despesas compartilhadas.
+
+Sua tarefa é extrair gastos mencionados pelo usuário e transformá-los em dados estruturados.
+
+Você receberá:
+
+* transcrição do áudio;
+* usuário atual;
+* participantes do grupo;
+* categorias disponíveis;
+* tipos de divisão suportados.
+
+Nunca invente informações.
+
+Quando uma informação não estiver disponível, retorne null ou marque como requiring_confirmation.
+
+Interprete ‘eu’, ‘meu’, ‘minha’ como referência ao usuário atual.
+
+Somente utilize participantes fornecidos na lista de participantes.
+
+Identifique múltiplos gastos em uma mesma narrativa.
+
+Separe gastos quando fizer sentido.
+
+Não faça suposições financeiras críticas.
+
+Retorne exclusivamente uma estrutura JSON compatível com o schema fornecido.”
+
+Melhore esse prompt conforme necessário.
+
+# 22. ARQUITETURA
+
+Separar o fluxo em etapas.
+
+Idealmente:
+
+Áudio
+↓
+Transcrição
+↓
+Interpretação semântica
+↓
+JSON estruturado
+↓
+Validação
+↓
+Associação com participantes reais
+↓
+Cálculo pelo backend
+↓
+Revisão do usuário
+↓
+Confirmação
+↓
+Persistência dos gastos
+↓
+Recalcular saldos
+
+Não salvar os gastos definitivos antes da confirmação.
+
+# 23. STATUS TEMPORÁRIO
+
+Se necessário, criar uma entidade ou estado temporário como:
+
+voice_expense_draft
+
+ou estrutura equivalente.
+
+Ela pode armazenar temporariamente:
+
+* usuário;
+* grupo;
+* transcrição;
+* resultado interpretado;
+* status;
+* data de criação.
+
+Status possíveis:
+
+processing
+
+needs_review
+
+confirmed
+
+discarded
+
+failed
+
+Evitar manter dados temporários indefinidamente.
+
+# 24. ESTADOS DA INTERFACE
+
+Criar uma experiência clara:
+
+Estado 1:
+“Gravando...”
+
+Estado 2:
+“Transcrevendo seu áudio...”
+
+Estado 3:
+“Identificando os gastos...”
+
+Estado 4:
+“Calculando as divisões...”
+
+Estado 5:
+“Revise antes de adicionar”
+
+Estado de erro:
+
+“Não conseguimos interpretar esse áudio. Você pode tentar novamente ou adicionar os gastos manualmente.”
+
+# 25. NÃO BLOQUEAR O SISTEMA
+
+O processamento da IA não deve comprometer as funcionalidades normais.
+
+Tratar:
+
+* timeout;
+* erro da API;
+* áudio vazio;
+* áudio muito curto;
+* áudio corrompido;
+* falta de internet;
+* resposta inválida da IA;
+* indisponibilidade do serviço externo.
+
+Sempre oferecer opção de cadastrar manualmente.
+
+# 26. PRIVACIDADE
+
+Como áudios podem conter informações pessoais, ter cuidado com armazenamento.
+
+Preferencialmente:
+
+* utilizar o áudio apenas durante o processamento;
+* não torná-lo público;
+* não permitir acesso por membros de outros grupos;
+* excluir arquivos temporários após processamento quando possível.
+
+# 27. FEEDBACK DO USUÁRIO
+
+Depois que o usuário corrigir algo que a IA interpretou errado, podemos registrar apenas informações técnicas úteis, sem alterar automaticamente os gastos.
+
+Exemplo:
+
+“IA interpretou João como João Silva, usuário selecionou João Pedro.”
+
+Isso pode futuramente ser utilizado para melhorar a experiência de resolução de nomes, respeitando privacidade.
+
+Não implementar nenhum treinamento de modelo próprio agora.
+
+# 28. EXEMPLO COMPLETO
+
+Considere que o usuário Leo está em um grupo com:
+
+Leo
+
+João
+
+Maria
+
+Pedro
+
+Ele grava:
+
+“Ontem fomos jantar. Eu paguei 460 reais. Foi para todo mundo, mas a Maria não bebeu e as bebidas deram 120. Depois o Pedro pagou 80 reais de Uber para mim, ele e João. Mais tarde eu comprei 50 reais de sobremesa, mas foi só eu e Maria.”
+
+A aplicação deve entender aproximadamente:
+
+Jantar:
+
+R$ 460
+
+Pago por Leo
+
+Base:
+todos participaram.
+
+Bebidas:
+R$ 120 divididos apenas entre Leo, João e Pedro.
+
+Parte restante:
+R$ 340 divididos entre Leo, João, Maria e Pedro.
+
+Uber:
+
+R$ 80
+
+Pago por Pedro
+
+Participantes:
+Leo, Pedro e João.
+
+Sobremesa:
+
+R$ 50
+
+Pago por Leo
+
+Participantes:
+Leo e Maria.
+
+O backend deve calcular quanto cada pessoa deve.
+
+Depois mostrar tudo na tela para revisão.
+
+Nenhum gasto deve ser salvo até Leo clicar em:
+
+“Confirmar e adicionar gastos”
+
+# 29. EXPERIÊNCIA FINAL DESEJADA
+
+Quero que o usuário consiga abrir um grupo, apertar um botão e simplesmente falar:
+
+“Ontem eu paguei 200 no mercado para todo mundo, João pagou 60 de Uber só para ele, eu e Pedro e a Maria pagou 120 no restaurante para todo mundo menos o Lucas.”
+
+E poucos segundos depois receber uma tela contendo os gastos já organizados e divididos, precisando apenas revisar e confirmar.
+
+A sensação precisa ser:
+
+“Eu conto o que aconteceu e o aplicativo faz o trabalho chato por mim.”
+
+# 30. PREPARAR PARA EVOLUÇÕES FUTURAS
+
+Estruturar a funcionalidade de modo que posteriormente seja possível adicionar:
+
+* upload de áudio já gravado;
+* envio de áudio pelo WhatsApp;
+* leitura de notas fiscais;
+* foto + áudio juntos;
+* comandos de voz para corrigir gastos;
+* assistente conversacional;
+* identificação de gastos recorrentes;
+* criação de gastos por texto;
+* transcrição de reuniões/viagens longas;
+* suporte a múltiplos idiomas.
+
+Não é necessário implementar tudo isso agora.
+
+A arquitetura apenas não deve impedir essas evoluções.
+
+# 31. TESTES
+
+Criar/testar cenários como:
+
+1. Um único gasto simples.
+2. Vários gastos no mesmo áudio.
+3. Usuário dizendo “eu paguei”.
+4. Divisão entre todos.
+5. Exclusão de uma pessoa.
+6. Gasto específico para algumas pessoas.
+7. Mais de um gasto pago por pessoas diferentes.
+8. Nome ambíguo.
+9. Participante mencionado que não existe.
+10. Valor não informado.
+11. Pagador não informado.
+12. Categoria identificada automaticamente.
+13. Valores com centavos.
+14. Áudio sem informações de gastos.
+15. Áudio muito curto.
+16. Falha na transcrição.
+17. JSON inválido retornado pela IA.
+18. Usuário editar informações antes de confirmar.
+19. Usuário cancelar toda a operação.
+20. Confirmação final criando todos os gastos e recalculando os saldos.
+
+# 32. IMPORTANTE SOBRE A IMPLEMENTAÇÃO
+
+Primeiro analise quais serviços de IA, bibliotecas, APIs e secrets já existem no projeto.
+
+Não exponha API keys no frontend.
+
+Todas as chamadas que exigem segredo devem ocorrer no backend.
+
+Utilize variáveis de ambiente / Replit Secrets.
+
+Se for necessário adicionar um novo serviço externo, escolha uma abordagem compatível com a stack atual e documente claramente:
+
+* serviço utilizado;
+* variável de ambiente necessária;
+* onde obter a chave;
+* custo/limitações relevantes;
+* arquivos modificados.
+
+Não faça mudanças desnecessárias na arquitetura.
+
+# 33. AO FINAL
+
+Depois de implementar, me forneça um relatório contendo:
+
+1. arquivos criados;
+2. arquivos modificados;
+3. alterações no banco;
+4. migrations criadas;
+5. APIs/rotas adicionadas;
+6. serviço utilizado para transcrição;
+7. serviço/modelo utilizado para interpretação;
+8. schema JSON usado;
+9. como é feita a validação;
+10. como são tratados casos ambíguos;
+11. como testar a funcionalidade;
+12. quais secrets preciso configurar;
+13. quais funcionalidades ainda dependem de configuração externa.
+
+Implemente tudo de maneira modular, segura e integrada ao sistema atual.
+
+A prioridade é uma ótima experiência mobile, alta confiabilidade na interpretação e, principalmente, nunca criar uma divisão financeira errada sem que o usuário tenha a oportunidade de revisar e confirmar.

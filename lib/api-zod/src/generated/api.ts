@@ -195,6 +195,9 @@ export const createDespesaBodyDivisoesItemPorcentagemMax = 100;
 export const createDespesaBodyDivisoesItemCotasMin = 0;
 
 
+export const createDespesaBodyIdempotencyKeyMin = 8;
+export const createDespesaBodyIdempotencyKeyMax = 160;
+
 
 
 export const CreateDespesaBody = zod.object({
@@ -208,7 +211,8 @@ export const CreateDespesaBody = zod.object({
   "valorDevido": zod.number().min(createDespesaBodyDivisoesItemValorDevidoMin),
   "porcentagem": zod.number().min(createDespesaBodyDivisoesItemPorcentagemMin).max(createDespesaBodyDivisoesItemPorcentagemMax).nullish(),
   "cotas": zod.number().min(createDespesaBodyDivisoesItemCotasMin).nullish()
-})).min(1)
+})).min(1),
+  "idempotencyKey": zod.string().min(createDespesaBodyIdempotencyKeyMin).max(createDespesaBodyIdempotencyKeyMax).optional()
 })
 
 export const createDespesaResponseDivisoesItemValorDevidoMin = 0;
@@ -235,6 +239,59 @@ export const CreateDespesaResponse = zod.object({
   "porcentagem": zod.number().min(createDespesaResponseDivisoesItemPorcentagemMin).max(createDespesaResponseDivisoesItemPorcentagemMax).nullish(),
   "cotas": zod.number().min(createDespesaResponseDivisoesItemCotasMin).nullish()
 }))
+})
+
+
+/**
+ * Returns a reviewable draft. No expense is persisted by this operation.
+ * @summary Transcribe and interpret a voice expense narrative
+ */
+export const ParseVoiceExpensesParams = zod.object({
+  "grupoId": zod.coerce.number()
+})
+
+export const parseVoiceExpensesBodyAudioBase64Min = 32;
+
+export const parseVoiceExpensesBodyMimeTypeDefault = `audio/webm`;
+
+export const ParseVoiceExpensesBody = zod.object({
+  "audioBase64": zod.string().min(parseVoiceExpensesBodyAudioBase64Min),
+  "mimeType": zod.string().default(parseVoiceExpensesBodyMimeTypeDefault)
+})
+
+export const parseVoiceExpensesResponseDespesasItemDivisoesItemValorDevidoMin = 0;
+
+
+
+export const ParseVoiceExpensesResponse = zod.object({
+  "transcricao": zod.string(),
+  "resumo": zod.string(),
+  "despesas": zod.array(zod.object({
+  "id": zod.string(),
+  "descricao": zod.string(),
+  "valor": zod.number().nullable(),
+  "categoria": zod.string().nullable(),
+  "tipoDivisao": zod.enum(['igual', 'selecionados', 'personalizado', 'porcentagem', 'cotas']),
+  "pagoPorId": zod.number().nullable(),
+  "pagoPorNome": zod.string().nullable(),
+  "divisoes": zod.array(zod.object({
+  "participanteId": zod.number(),
+  "nome": zod.string(),
+  "valorDevido": zod.number().min(parseVoiceExpensesResponseDespesasItemDivisoesItemValorDevidoMin),
+  "porcentagem": zod.number().nullable(),
+  "cotas": zod.number().nullable()
+})),
+  "nomesNaoResolvidos": zod.array(zod.string()),
+  "precisaConfirmacao": zod.array(zod.string()),
+  "confianca": zod.object({
+  "valor": zod.enum(['alta', 'média', 'baixa']),
+  "pagador": zod.enum(['alta', 'média', 'baixa']),
+  "participantes": zod.enum(['alta', 'média', 'baixa']),
+  "categoria": zod.enum(['alta', 'média', 'baixa'])
+}),
+  "observacoes": zod.string().nullable()
+})),
+  "avisos": zod.array(zod.string())
 })
 
 

@@ -147,6 +147,11 @@ export interface DespesaInput {
   pagoPorId: number;
   /** @minItems 1 */
   divisoes: Divisao[];
+  /**
+     * @minLength 8
+     * @maxLength 160
+     */
+  idempotencyKey?: string;
 }
 
 export interface DebitoItem {
@@ -185,5 +190,103 @@ export interface PagamentoInput {
   valor: number;
   /** @nullable */
   comprovante?: string | null;
+}
+
+export interface VoiceExpenseParseInput {
+  /** @minLength 32 */
+  audioBase64: string;
+  mimeType?: string;
+}
+
+export interface VoiceExpenseDivision {
+  participanteId: number;
+  nome: string;
+  /** @minimum 0 */
+  valorDevido: number;
+  /** @nullable */
+  porcentagem: number | null;
+  /** @nullable */
+  cotas: number | null;
+}
+
+export type VoiceExpenseConfidenceValor = typeof VoiceExpenseConfidenceValor[keyof typeof VoiceExpenseConfidenceValor];
+
+
+export const VoiceExpenseConfidenceValor = {
+  alta: 'alta',
+  média: 'média',
+  baixa: 'baixa',
+} as const;
+
+export type VoiceExpenseConfidencePagador = typeof VoiceExpenseConfidencePagador[keyof typeof VoiceExpenseConfidencePagador];
+
+
+export const VoiceExpenseConfidencePagador = {
+  alta: 'alta',
+  média: 'média',
+  baixa: 'baixa',
+} as const;
+
+export type VoiceExpenseConfidenceParticipantes = typeof VoiceExpenseConfidenceParticipantes[keyof typeof VoiceExpenseConfidenceParticipantes];
+
+
+export const VoiceExpenseConfidenceParticipantes = {
+  alta: 'alta',
+  média: 'média',
+  baixa: 'baixa',
+} as const;
+
+export type VoiceExpenseConfidenceCategoria = typeof VoiceExpenseConfidenceCategoria[keyof typeof VoiceExpenseConfidenceCategoria];
+
+
+export const VoiceExpenseConfidenceCategoria = {
+  alta: 'alta',
+  média: 'média',
+  baixa: 'baixa',
+} as const;
+
+export interface VoiceExpenseConfidence {
+  valor: VoiceExpenseConfidenceValor;
+  pagador: VoiceExpenseConfidencePagador;
+  participantes: VoiceExpenseConfidenceParticipantes;
+  categoria: VoiceExpenseConfidenceCategoria;
+}
+
+export type VoiceExpenseDraftTipoDivisao = typeof VoiceExpenseDraftTipoDivisao[keyof typeof VoiceExpenseDraftTipoDivisao];
+
+
+export const VoiceExpenseDraftTipoDivisao = {
+  igual: 'igual',
+  selecionados: 'selecionados',
+  personalizado: 'personalizado',
+  porcentagem: 'porcentagem',
+  cotas: 'cotas',
+} as const;
+
+export interface VoiceExpenseDraft {
+  id: string;
+  descricao: string;
+  /** @nullable */
+  valor: number | null;
+  /** @nullable */
+  categoria: string | null;
+  tipoDivisao: VoiceExpenseDraftTipoDivisao;
+  /** @nullable */
+  pagoPorId: number | null;
+  /** @nullable */
+  pagoPorNome: string | null;
+  divisoes: VoiceExpenseDivision[];
+  nomesNaoResolvidos: string[];
+  precisaConfirmacao: string[];
+  confianca: VoiceExpenseConfidence;
+  /** @nullable */
+  observacoes: string | null;
+}
+
+export interface VoiceExpenseParseResponse {
+  transcricao: string;
+  resumo: string;
+  despesas: VoiceExpenseDraft[];
+  avisos: string[];
 }
 
