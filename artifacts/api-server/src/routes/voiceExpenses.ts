@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import { getAuth } from "@clerk/express";
 import { z } from "zod/v4";
 import { db, gruposTable, participantesTable } from "@workspace/db";
-import { isUsingDirectOpenAI, openai } from "@workspace/integrations-openai-ai-server";
+import { isUsingDirectOpenAI, logOpenAIUsage, openai } from "@workspace/integrations-openai-ai-server";
 import { ensureCompatibleFormat, speechToText } from "@workspace/integrations-openai-ai-server/audio";
 
 const router = Router();
@@ -221,8 +221,9 @@ router.post("/grupos/:grupoId/voice-expenses/parse", async (req, res): Promise<v
 
     const participantContext = participants.map((participant) => `- ${participant.nome} (id interno ${participant.id})`).join("\n");
     const currentName = currentParticipant?.nome ?? "não identificado entre os participantes";
+    const interpretationModel = isUsingDirectOpenAI ? "gpt-4.1-mini" : "gpt-5.6-terra";
     const response = await openai.chat.completions.create({
-      model: isUsingDirectOpenAI ? "gpt-4.1-mini" : "gpt-5.6-terra",
+      model: interpretationModel,
       max_completion_tokens: 5000,
       response_format: { type: "json_object" },
       messages: [
@@ -266,6 +267,7 @@ Regras:
         { role: "user", content: transcript },
       ],
     });
+    logOpenAIUsage("voiceExpenseInterpretation", interpretationModel, response.usage, response.model);
 
     const content = response.choices[0]?.message?.content ?? "";
     let rawModel: unknown;

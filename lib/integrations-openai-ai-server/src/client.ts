@@ -22,3 +22,50 @@ export const openai = new OpenAI({
 
 /** True when the app is using a user-provided OpenAI key instead of Replit AI Integrations. */
 export const isUsingDirectOpenAI = Boolean(directOpenAiApiKey);
+
+type OpenAITokenUsage = {
+  prompt_tokens?: unknown;
+  completion_tokens?: unknown;
+  input_tokens?: unknown;
+  output_tokens?: unknown;
+  total_tokens?: unknown;
+};
+
+/**
+ * Logs token usage without logging prompts, responses, audio, or images.
+ * Chat completions use prompt_tokens/completion_tokens; transcription and
+ * image responses use input_tokens/output_tokens in the installed SDK.
+ */
+export function logOpenAIUsage(
+  operation: string,
+  requestedModel: string,
+  usage: unknown,
+  responseModel?: string | null,
+) {
+  const tokenUsage =
+    usage && typeof usage === "object" ? (usage as OpenAITokenUsage) : {};
+  const inputTokens =
+    typeof tokenUsage.input_tokens === "number"
+      ? tokenUsage.input_tokens
+      : typeof tokenUsage.prompt_tokens === "number"
+        ? tokenUsage.prompt_tokens
+        : null;
+  const outputTokens =
+    typeof tokenUsage.output_tokens === "number"
+      ? tokenUsage.output_tokens
+      : typeof tokenUsage.completion_tokens === "number"
+        ? tokenUsage.completion_tokens
+        : null;
+  const totalTokens =
+    typeof tokenUsage.total_tokens === "number"
+      ? tokenUsage.total_tokens
+      : null;
+
+  console.info("[OpenAI token usage]", {
+    operacao: operation,
+    modelo: responseModel ?? requestedModel,
+    tokensEntrada: inputTokens,
+    tokensSaida: outputTokens,
+    tokensTotal: totalTokens,
+  });
+}

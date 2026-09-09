@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { openai } from "@workspace/integrations-openai-ai-server";
+import { logOpenAIUsage, openai } from "@workspace/integrations-openai-ai-server";
 
 const router = Router();
 
@@ -17,8 +17,9 @@ router.post("/scan-receipt", async (req, res) => {
     const mimeMatch = image.match(/^data:([^;]+);/);
     const mimeType = mimeMatch ? mimeMatch[1] : "image/jpeg";
 
+    const receiptModel = "gpt-5.6-luna";
     const response = await openai.chat.completions.create({
-      model: "gpt-5.6-luna",
+      model: receiptModel,
       max_completion_tokens: 2048,
       messages: [
         {
@@ -63,6 +64,7 @@ Regras importantes:
         },
       ],
     });
+    logOpenAIUsage("scanReceipt", receiptModel, response.usage, response.model);
 
     const content = response.choices[0]?.message?.content ?? "";
 

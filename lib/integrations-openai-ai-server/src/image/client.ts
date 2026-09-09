@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import { toFile } from "openai";
 import { Buffer } from "node:buffer";
-import { openai } from "../client";
+import { logOpenAIUsage, openai } from "../client";
 
 export { openai };
 
@@ -14,6 +14,7 @@ export async function generateImageBuffer(
     prompt,
     size,
   });
+  logOpenAIUsage("generateImageBuffer", "gpt-image-1", response.usage);
   const base64 = response.data?.[0]?.b64_json ?? "";
   return Buffer.from(base64, "base64");
 }
@@ -36,6 +37,7 @@ export async function editImages(
     image: images,
     prompt,
   });
+  logOpenAIUsage("editImages", "gpt-image-1", response.usage);
 
   const imageBase64 = response.data?.[0]?.b64_json ?? "";
   const imageBytes = Buffer.from(imageBase64, "base64");
