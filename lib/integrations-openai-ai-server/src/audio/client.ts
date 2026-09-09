@@ -6,22 +6,27 @@ import { randomUUID } from "crypto";
 import { tmpdir } from "os";
 import { join } from "path";
 
-if (!process.env.AI_INTEGRATIONS_OPENAI_BASE_URL) {
-  throw new Error(
-    "AI_INTEGRATIONS_OPENAI_BASE_URL must be set. Did you forget to provision the OpenAI AI integration?",
-  );
-}
+const directOpenAiApiKey = process.env.OPENAI_API_KEY;
+const managedOpenAiApiKey = process.env.AI_INTEGRATIONS_OPENAI_API_KEY;
+const openAiApiKey = directOpenAiApiKey ?? managedOpenAiApiKey;
+const openAiBaseUrl =
+  process.env.OPENAI_BASE_URL ??
+  process.env.AI_INTEGRATIONS_OPENAI_BASE_URL ??
+  "https://api.openai.com/v1";
 
-if (!process.env.AI_INTEGRATIONS_OPENAI_API_KEY) {
+if (!openAiApiKey) {
   throw new Error(
-    "AI_INTEGRATIONS_OPENAI_API_KEY must be set. Did you forget to provision the OpenAI AI integration?",
+    "Configure OPENAI_API_KEY or provision the OpenAI AI integration before using AI features.",
   );
 }
 
 export const openai = new OpenAI({
-  apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
-  baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
+  apiKey: openAiApiKey,
+  baseURL: openAiBaseUrl,
 });
+
+/** True when the app is using a user-provided OpenAI key instead of Replit AI Integrations. */
+export const isUsingDirectOpenAI = Boolean(directOpenAiApiKey);
 
 export type AudioFormat = "wav" | "mp3" | "webm" | "mp4" | "ogg" | "unknown";
 
