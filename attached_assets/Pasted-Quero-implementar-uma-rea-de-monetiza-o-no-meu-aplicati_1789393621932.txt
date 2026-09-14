@@ -1,0 +1,294 @@
+Quero implementar uma área de monetização no meu aplicativo **Rachador**, utilizando o **Stripe** como meio de pagamento.
+
+O objetivo é manter as funcionalidades básicas do aplicativo gratuitas, mas transformar duas funcionalidades específicas em recursos pagos:
+
+1. **Divisão automática de gastos por IA usando áudio/voz**
+2. **Divisão automática de gastos através de foto da nota fiscal**
+
+Quero que você analise a estrutura atual do projeto antes de fazer alterações e implemente essa monetização sem quebrar nenhuma funcionalidade existente.
+
+### Modelo de planos
+
+Crie inicialmente dois planos:
+
+**Plano Grátis**
+
+* Criar grupos
+* Adicionar participantes
+* Adicionar despesas manualmente
+* Fazer divisões manualmente
+* Visualizar saldos e histórico básico
+* Não deve ter acesso ilimitado às funções de IA
+
+**Rachador Pro**
+Preço inicial:
+
+* Mensal: **R$ 9,90/mês**
+* Anual: **R$ 79,90/ano**
+
+O plano Pro deve liberar:
+
+* Divisão automática através de áudio/voz com IA
+* Divisão automática através de foto da nota fiscal
+* Uso dessas funcionalidades sem o bloqueio existente no plano gratuito
+
+Deixe os valores e benefícios dos planos organizados no código de forma que seja fácil alterá-los futuramente.
+
+### Uso gratuito para demonstração
+
+Quero que usuários gratuitos possam experimentar as funcionalidades Premium antes de assinar.
+
+Implemente um limite de:
+
+**3 divisões automáticas gratuitas por mês por usuário.**
+
+Esse limite deve ser compartilhado entre:
+
+* IA por voz
+* Foto da nota fiscal
+
+Exemplo:
+
+Se o usuário utilizar:
+
+* 2 divisões por voz
+* 1 divisão por foto
+
+ele terá utilizado os 3 usos gratuitos daquele mês.
+
+Depois disso, qualquer tentativa de usar voz ou foto deve abrir a tela de assinatura do Rachador Pro.
+
+O limite deve ser controlado no backend/banco de dados, e não apenas no frontend, para evitar que seja facilmente burlado.
+
+O contador deve ser renovado automaticamente a cada mês.
+
+### Integração com Stripe
+
+Faça a integração completa com o **Stripe**, utilizando as práticas recomendadas de segurança.
+
+Não coloque nenhuma chave secreta do Stripe diretamente no código.
+
+Utilize variáveis de ambiente, como:
+
+* STRIPE_SECRET_KEY
+* STRIPE_PUBLISHABLE_KEY
+* STRIPE_WEBHOOK_SECRET
+* STRIPE_PRICE_MONTHLY_ID
+* STRIPE_PRICE_YEARLY_ID
+
+Se os nomes precisarem ser diferentes por causa da arquitetura atual, tudo bem, mas documente claramente.
+
+Implemente:
+
+* Stripe Checkout ou fluxo de assinatura apropriado
+* Assinatura mensal
+* Assinatura anual
+* Redirecionamento após pagamento aprovado
+* Redirecionamento após cancelamento do checkout
+* Webhooks do Stripe
+* Sincronização do status da assinatura com o banco de dados
+* Cancelamento da assinatura
+* Renovação
+* Expiração
+* Falha de pagamento
+* Reativação quando aplicável
+
+O sistema não deve considerar o usuário Pro apenas porque ele voltou da página de pagamento.
+
+O status Pro deve ser confirmado através do Stripe/webhook e armazenado no backend.
+
+### Banco de dados
+
+Analise o schema existente e faça as alterações necessárias.
+
+Preciso conseguir identificar pelo menos:
+
+* qual usuário possui assinatura
+* Stripe Customer ID
+* Stripe Subscription ID
+* plano atual
+* status da assinatura
+* data de início da assinatura
+* data da próxima renovação ou fim do período atual
+* quantidade de usos de IA no mês
+* período/mês referente ao contador
+
+Não crie campos duplicados se a estrutura atual já tiver algo equivalente.
+
+Se fizer sentido arquiteturalmente, crie uma tabela específica de assinaturas.
+
+### Área de planos
+
+Crie dentro do aplicativo uma nova área chamada:
+
+**Planos**
+
+ou
+
+**Rachador Pro**
+
+Ela deve apresentar de forma visualmente agradável a comparação entre os planos.
+
+Exemplo:
+
+**Rachador Free**
+
+* Grupos
+* Participantes
+* Despesas manuais
+* Divisão manual
+* 3 divisões automáticas por IA/mês
+
+**Rachador Pro**
+
+* Tudo do plano Free
+* IA por voz
+* Foto de nota fiscal
+* Divisões automáticas ilimitadas ou com limite técnico alto
+* R$ 9,90/mês
+* R$ 79,90/ano
+
+Coloque botões como:
+
+**Assinar mensal**
+
+**Assinar anual**
+
+O plano anual deve ter destaque visual, podendo mostrar algo como:
+
+**Economize assinando anualmente**
+
+Calcule automaticamente a economia comparando com 12 meses do plano mensal.
+
+### Experiência do usuário
+
+Quando um usuário Free tocar em:
+
+* IA por voz
+* Foto da nota fiscal
+
+verifique primeiro quantos usos gratuitos ainda restam.
+
+Se ainda houver usos gratuitos, permita utilizar normalmente e mostre algo discreto como:
+
+**2 de 3 divisões automáticas gratuitas restantes este mês.**
+
+Se não houver mais usos disponíveis, abra um paywall.
+
+O paywall deve explicar:
+
+**Desbloqueie o Rachador Pro**
+
+Transforme áudios e fotos de notas fiscais em divisões prontas automaticamente.
+
+Benefícios:
+
+* Divisão automática por voz
+* Leitura de notas fiscais
+* Menos trabalho manual
+* Divisões mais rápidas
+
+Apresentar:
+
+* R$ 9,90/mês
+* R$ 79,90/ano
+
+E botões para assinatura.
+
+Não apagar os dados que o usuário estava preenchendo antes do paywall.
+
+Se possível, depois que a assinatura for confirmada, permita que ele retorne para a funcionalidade que estava tentando utilizar.
+
+### Tela de conta / assinatura
+
+Na área de perfil ou configurações, crie também uma seção:
+
+**Minha assinatura**
+
+Ela deve mostrar:
+
+* Plano atual
+* Free ou Pro
+* Tipo de assinatura: mensal/anual
+* Status
+* Próxima cobrança
+* Botão para gerenciar assinatura
+* Botão para cancelar, quando aplicável
+
+Utilize o Stripe Customer Portal se isso fizer sentido para a arquitetura do projeto.
+
+### Segurança
+
+É essencial:
+
+* Nunca confiar apenas no frontend para verificar assinatura
+* Nunca expor STRIPE_SECRET_KEY
+* Validar webhooks corretamente
+* Validar o usuário autenticado antes de criar checkout
+* Associar Stripe Customer ao usuário correto do sistema
+* Impedir que um usuário altere manualmente seu plano
+* Não confiar em parâmetros vindos do frontend para definir preço
+* Utilizar Price IDs cadastrados no Stripe pelo backend
+
+### Interface
+
+Mantenha a identidade visual que já existe no Rachador.
+
+Não quero que a nova área pareça uma página externa ou diferente do restante do aplicativo.
+
+A página de planos e o paywall devem seguir:
+
+* mesmas cores
+* mesmos componentes
+* mesmos espaçamentos
+* mesma tipografia
+* responsividade mobile e desktop
+
+Coloque indicação visual de **PRO** nas funcionalidades de IA por voz e foto da nota fiscal.
+
+### Métricas
+
+Se o projeto já possui analytics, registre eventos como:
+
+* plan_page_view
+* paywall_view
+* checkout_started
+* subscription_created
+* subscription_cancelled
+* subscription_renewed
+* ai_voice_used
+* receipt_scan_used
+* free_ai_limit_reached
+
+Se ainda não existir uma estrutura de analytics, deixe essa parte preparada/documentada, mas não implemente uma ferramenta externa sem necessidade.
+
+### Muito importante antes de começar
+
+Antes de alterar o código:
+
+1. Analise a arquitetura atual do projeto.
+2. Identifique framework, backend, banco de dados e sistema de autenticação.
+3. Identifique onde estão atualmente as funcionalidades de IA por voz e foto de nota fiscal.
+4. Explique quais arquivos/tabelas precisarão ser modificados.
+5. Reaproveite a arquitetura existente em vez de criar sistemas paralelos desnecessários.
+6. Faça as migrations necessárias no banco.
+7. Depois implemente a solução.
+8. Ao final, me entregue uma lista clara das variáveis de ambiente que preciso cadastrar no Replit e do que preciso configurar manualmente no painel do Stripe.
+
+Também quero que você teste os principais fluxos:
+
+* usuário Free usando IA dentro do limite
+* usuário Free atingindo o limite
+* abertura do paywall
+* checkout mensal
+* checkout anual
+* confirmação de assinatura
+* usuário Pro utilizando voz
+* usuário Pro utilizando foto
+* cancelamento da assinatura
+* assinatura expirada
+* falha de pagamento
+* retorno do usuário para o plano Free
+* renovação do limite gratuito mensal
+
+Não altere ou remova funcionalidades existentes que não estejam relacionadas à monetização.
