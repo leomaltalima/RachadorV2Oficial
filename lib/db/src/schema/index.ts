@@ -5,3 +5,4 @@ export * from "./pagamentos";
 export * from "./push_tokens";
 export * from "./usuarios";
 export * from "./grupo_usuarios";
+export * from "./assinaturas";

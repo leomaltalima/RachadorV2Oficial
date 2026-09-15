@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { useGetGrupoByCodigo, getGetGrupoByCodigoQueryKey } from "@workspace/api-client-react"
 import { getSession, setSession, clearSession } from "@/lib/session"
-import { PlusCircle, LogOut, Users, ChevronRight, DoorOpen } from "lucide-react"
+import { PlusCircle, LogOut, Users, ChevronRight, DoorOpen, Crown } from "lucide-react"
 import { formatCurrency } from "@/lib/utils"
 
 interface MeuGrupo {
@@ -132,6 +132,11 @@ export default function Home() {
             <LogOut className="w-4 h-4" />
           </Button>
         </div>
+
+        <Button variant="outline" className="w-full justify-between rounded-2xl border-primary/30 bg-primary/5" onClick={() => setLocation("/planos")}>
+          <span className="flex items-center gap-2"><Crown className="h-4 w-4 text-primary" /> Planos e minha assinatura</span>
+          <ChevronRight className="h-4 w-4" />
+        </Button>
 
         {/* My groups */}
         <div className="space-y-2">

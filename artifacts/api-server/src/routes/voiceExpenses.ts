@@ -3,8 +3,9 @@ import { eq } from "drizzle-orm";
 import { getAuth } from "@clerk/express";
 import { z } from "zod/v4";
 import { db, gruposTable, participantesTable } from "@workspace/db";
-import { isUsingDirectOpenAI, logOpenAIUsage, openai } from "@workspace/integrations-openai-ai-server";
+import { isUsingDirectOpenAI, openai } from "@workspace/integrations-openai-ai-server";
 import { ensureCompatibleFormat, speechToText } from "@workspace/integrations-openai-ai-server/audio";
+import { reserveAiUse } from "../billing";
 
 const router = Router();
 
@@ -205,6 +206,16 @@ router.post("/grupos/:grupoId/voice-expenses/parse", async (req, res): Promise<v
     return;
   }
 
+  const usage = await reserveAiUse(userId, "voice");
+  if (!usage.allowed) {
+    res.status(402).json({
+      error: "Você atingiu o limite de 3 divisões automáticas gratuitas neste mês.",
+      code: "premium_required",
+      billing: usage.summary,
+    });
+    return;
+  }
+
   try {
     const rawBase64 = parsedInput.data.audioBase64.replace(/^data:[^;]+;base64,/, "");
     const audioBuffer = Buffer.from(rawBase64, "base64");
@@ -267,8 +278,6 @@ Regras:
         { role: "user", content: transcript },
       ],
     });
-    logOpenAIUsage("voiceExpenseInterpretation", interpretationModel, response.usage, response.model);
-
     const content = response.choices[0]?.message?.content ?? "";
     let rawModel: unknown;
     try {

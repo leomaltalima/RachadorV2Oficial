@@ -5,7 +5,7 @@ import { writeFile, unlink, readFile } from "fs/promises";
 import { randomUUID } from "crypto";
 import { tmpdir } from "os";
 import { join } from "path";
-import { logOpenAIUsage, openai } from "../client";
+import { openai } from "../client";
 
 export { openai };
 
@@ -113,7 +113,6 @@ export async function voiceChat(
       ],
     }],
   });
-  logOpenAIUsage("voiceChat", "gpt-audio", response.usage, response.model);
   const message = response.choices[0]?.message as any;
   const transcript = message?.audio?.transcript || message?.content || "";
   const audioData = message?.audio?.data ?? "";
@@ -141,15 +140,10 @@ export async function voiceChatStream(
       ],
     }],
     stream: true,
-    stream_options: { include_usage: true },
   });
 
   return (async function* () {
-    let usage: unknown;
-    let responseModel: string | null = null;
     for await (const chunk of stream) {
-      usage = chunk.usage ?? usage;
-      responseModel = chunk.model ?? responseModel;
       const delta = chunk.choices?.[0]?.delta as any;
       if (!delta) continue;
       if (delta?.audio?.transcript) {
@@ -159,7 +153,6 @@ export async function voiceChatStream(
         yield { type: "audio", data: delta.audio.data };
       }
     }
-    logOpenAIUsage("voiceChatStream", "gpt-audio", usage, responseModel);
   })();
 }
 
@@ -178,7 +171,6 @@ export async function textToSpeech(
       { role: "user", content: `Repeat the following text verbatim: ${text}` },
     ],
   });
-  logOpenAIUsage("textToSpeech", "gpt-audio", response.usage, response.model);
   const audioData = (response.choices[0]?.message as any)?.audio?.data ?? "";
   return Buffer.from(audioData, "base64");
 }
@@ -197,22 +189,16 @@ export async function textToSpeechStream(
       { role: "user", content: `Repeat the following text verbatim: ${text}` },
     ],
     stream: true,
-    stream_options: { include_usage: true },
   });
 
   return (async function* () {
-    let usage: unknown;
-    let responseModel: string | null = null;
     for await (const chunk of stream) {
-      usage = chunk.usage ?? usage;
-      responseModel = chunk.model ?? responseModel;
       const delta = chunk.choices?.[0]?.delta as any;
       if (!delta) continue;
       if (delta?.audio?.data) {
         yield delta.audio.data;
       }
     }
-    logOpenAIUsage("textToSpeechStream", "gpt-audio", usage, responseModel);
   })();
 }
 
@@ -226,7 +212,6 @@ export async function speechToText(
     file,
     model: "gpt-4o-mini-transcribe",
   });
-  logOpenAIUsage("speechToText", "gpt-4o-mini-transcribe", response.usage);
   return response.text;
 }
 
@@ -243,14 +228,11 @@ export async function speechToTextStream(
   });
 
   return (async function* () {
-    let usage: unknown;
     for await (const event of stream) {
       if (event.type === "transcript.text.delta") {
         yield event.delta;
       } else if (event.type === "transcript.text.done") {
-        usage = event.usage;
       }
     }
-    logOpenAIUsage("speechToTextStream", "gpt-4o-mini-transcribe", usage);
   })();
 }

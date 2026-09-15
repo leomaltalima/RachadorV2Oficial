@@ -10,9 +10,11 @@ import { useToast } from "@/hooks/use-toast";
 export function VoiceExpenseFlow({
   grupo,
   onClose,
+  onPaywall,
 }: {
   grupo: GrupoComParticipantes;
   onClose: () => void;
+  onPaywall?: () => void;
 }) {
   const [step, setStep] = useState<"record" | "processing" | "review">("record");
   const [parseResult, setParseResult] = useState<VoiceExpenseParseResponse | null>(null);
@@ -33,6 +35,11 @@ export function VoiceExpenseFlow({
           setStep("review");
         },
         onError: (err: any) => {
+          if (err?.status === 402 || err?.data?.code === "premium_required") {
+            onPaywall?.();
+            setStep("record");
+            return;
+          }
           toast({ title: "Erro ao processar áudio", description: err.message || "Tente novamente mais tarde", variant: "destructive" });
           setStep("record");
         },

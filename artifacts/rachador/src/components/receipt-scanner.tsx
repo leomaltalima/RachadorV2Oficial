@@ -26,9 +26,10 @@ interface ReceiptScannerProps {
   participantes: Participante[]
   onApply: (splits: Record<number, number>, total: number, descricao: string) => void
   onClose: () => void
+  onPaywall?: () => void
 }
 
-export function ReceiptScanner({ participantes, onApply, onClose }: ReceiptScannerProps) {
+export function ReceiptScanner({ participantes, onApply, onClose, onPaywall }: ReceiptScannerProps) {
   const [step, setStep] = useState<"capture" | "assigning">("capture")
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -55,7 +56,14 @@ export function ReceiptScanner({ participantes, onApply, onClose }: ReceiptScann
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ image: base64 }),
       })
-      if (!res.ok) throw new Error("Erro ao processar a nota")
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        if (res.status === 402 || body.code === "premium_required") {
+          onPaywall?.()
+          return
+        }
+        throw new Error(body.error || "Erro ao processar a nota")
+      }
       const data: ReceiptData = await res.json()
       setReceipt(data)
       setTaxaPercent(data.taxaServico != null ? data.taxaServico.toString() : "")

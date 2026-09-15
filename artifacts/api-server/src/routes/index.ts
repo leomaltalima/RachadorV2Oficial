@@ -9,6 +9,7 @@ import meRouter from "./me";
 import scanReceiptRouter from "./scanReceipt";
 import pushTokensRouter from "./push_tokens";
 import voiceExpensesRouter from "./voiceExpenses";
+import billingRouter from "./billing";
 
 const router: IRouter = Router();
 
@@ -22,5 +23,6 @@ router.use(pagamentosRouter);
 router.use(scanReceiptRouter);
 router.use(pushTokensRouter);
 router.use(voiceExpensesRouter);
+router.use(billingRouter);
 
 export default router;
