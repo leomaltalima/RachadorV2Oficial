@@ -22,6 +22,8 @@ tags:
     description: Payment operations
   - name: voz
     description: Voice expense draft operations
+  - name: billing
+    description: Rachador paid-plan and one-time PIX operations
 
 paths:
   /healthz:
@@ -292,6 +294,155 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+
+  /billing/me:
+    get:
+      operationId: getBillingMe
+      tags: [billing]
+      summary: Get the authenticated user's paid plan
+      responses:
+        "200":
+          description: Current plan and one-time PIX payment
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BillingMe"
+        "401":
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /billing/checkout:
+    post:
+      operationId: createBillingCheckout
+      tags: [billing]
+      summary: Create an AbacatePay PIX checkout
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BillingCheckoutInput"
+      responses:
+        "201":
+          description: PIX checkout created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BillingCheckoutResponse"
+        "400":
+          description: Invalid paid plan
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: AbacatePay PIX is not enabled for the store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: Account is missing the required email
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /billing/pix/simulate:
+    post:
+      operationId: simulateBillingPixPayment
+      tags: [billing]
+      summary: Simulate a Dev mode PIX payment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BillingPixSimulationInput"
+      responses:
+        "200":
+          description: PIX simulation requested
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BillingPixSimulationResponse"
+        "401":
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Pending PIX charge not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /billing/cancel:
+    post:
+      operationId: cancelBillingSubscription
+      tags: [billing]
+      summary: Request cancellation at AbacatePay
+      responses:
+        "200":
+          description: Cancellation requested
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BillingCancelResponse"
+        "401":
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: No active subscription
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /webhooks/abacatepay:
+    post:
+      operationId: receiveAbacatePayWebhook
+      tags: [billing]
+      summary: Receive an authenticated AbacatePay v2 webhook
+      parameters:
+        - name: webhookSecret
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: X-Webhook-Signature
+          in: header
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+                $ref: "#/components/schemas/AbacateWebhookPayload"
+      responses:
+        "200":
+          description: Event accepted
+        "400":
+          description: Invalid event
+        "401":
+          description: Invalid webhook credentials
+        "500":
+          description: Processing failure
 
   /despesas/{id}:
     delete:
@@ -859,3 +1010,127 @@ components:
         - resumo
         - despesas
         - avisos
+
+    BillingCheckoutInput:
+      type: object
+      properties:
+        plan:
+          type: string
+          enum: [PRO, MASTER]
+      required:
+        - plan
+
+    BillingPixSimulationInput:
+      type: object
+      properties:
+        checkoutId:
+          type: string
+      required:
+        - checkoutId
+
+    BillingCheckoutResponse:
+      type: object
+      properties:
+        checkoutUrl:
+          type: ["string", "null"]
+        checkoutId:
+          type: string
+        plan:
+          type: string
+          enum: [PRO, MASTER]
+        paymentMethod:
+          type: string
+          enum: [PIX]
+        pixCode:
+          type: string
+        pixQrCode:
+          type: string
+        pixExpiresAt:
+          type: ["string", "null"]
+          format: date-time
+        devMode:
+          type: boolean
+      required:
+        - checkoutId
+        - plan
+        - paymentMethod
+        - pixCode
+        - pixQrCode
+        - pixExpiresAt
+        - devMode
+
+    BillingPixSimulationResponse:
+      type: object
+      properties:
+        checkoutId:
+          type: string
+        status:
+          type: string
+      required:
+        - checkoutId
+        - status
+
+    BillingCancelResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [cancellation_requested]
+      required:
+        - status
+
+    BillingMe:
+      type: object
+      properties:
+        plan:
+          type: string
+          enum: [FREE, PRO, MASTER]
+        pendingPlan:
+          type: ["string", "null"]
+          enum: [PRO, MASTER, null]
+        status:
+          type: string
+        billingCycle:
+          type: ["string", "null"]
+          enum: [one_time, null]
+        amount:
+          type: ["number", "null"]
+        startedAt:
+          type: ["string", "null"]
+          format: date-time
+        nextBillingAt:
+          type: ["string", "null"]
+          format: date-time
+        canceledAt:
+          type: ["string", "null"]
+          format: date-time
+        checkoutId:
+          type: ["string", "null"]
+        paymentMethod:
+          type: ["string", "null"]
+          enum: [PIX, null]
+        pixCode:
+          type: ["string", "null"]
+        pixQrCode:
+          type: ["string", "null"]
+        pixExpiresAt:
+          type: ["string", "null"]
+          format: date-time
+      required:
+        - plan
+        - status
+        - pendingPlan
+        - billingCycle
+        - amount
+        - startedAt
+        - nextBillingAt
+        - canceledAt
+        - checkoutId
+        - paymentMethod
+        - pixCode
+        - pixQrCode
+        - pixExpiresAt
+
+    AbacateWebhookPayload:
+      type: object
+      additionalProperties: true

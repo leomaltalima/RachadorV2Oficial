@@ -1,0 +1,318 @@
+Os pagamentos via Stripe já estão funcionando no Rachador, porém existe um problema de controle de acesso:
+
+**Usuários do plano Free ainda conseguem acessar e utilizar funcionalidades que deveriam ser exclusivas do plano Pro.**
+
+Quero que você revise a lógica de permissões do projeto e implemente um controle de acesso robusto, tanto no frontend quanto principalmente no backend.
+
+## Regras dos planos
+
+### Plano Free
+
+Usuários Free podem utilizar:
+
+* Criar grupos
+* Entrar em grupos
+* Adicionar participantes
+* Criar despesas manualmente
+* Editar despesas manuais
+* Fazer divisão manual de despesas
+* Visualizar quem deve para quem
+* Visualizar histórico básico dos grupos
+
+Usuários Free **NÃO podem utilizar**:
+
+* Divisão automática de gastos por IA através de áudio/voz
+* Divisão automática através de foto da nota fiscal
+* Qualquer outra funcionalidade marcada como exclusiva do Rachador Pro
+
+Neste momento, quero que essas duas funcionalidades sejam efetivamente bloqueadas para usuários Free.
+
+### Plano Rachador Pro
+
+Usuários Pro podem utilizar tudo do plano Free, além de:
+
+* **IA por voz:** gravar ou enviar um áudio descrevendo os gastos para que a IA interprete automaticamente quem pagou, quanto foi gasto, quais participantes estão envolvidos e gere a divisão.
+* **Foto da nota fiscal:** enviar/tirar uma foto de uma nota fiscal para que o sistema interprete os itens e valores e permita gerar automaticamente a divisão da conta.
+
+Essas duas funcionalidades devem ser consideradas **PRO FEATURES** no sistema.
+
+## Regra principal de autorização
+
+Não quero apenas esconder os botões no frontend.
+
+A segurança precisa existir no backend.
+
+Antes de qualquer operação relacionada a:
+
+* IA por voz
+* Processamento de áudio
+* Transcrição de áudio
+* Interpretação de despesas através de IA
+* Upload de nota fiscal
+* OCR/leitura de nota
+* Interpretação da nota fiscal
+* Criação automática de despesas baseada nesses recursos
+
+o backend deve verificar o plano do usuário autenticado.
+
+Crie uma função centralizada, algo equivalente a:
+
+`requireProUser()`
+
+ou
+
+`checkProAccess()`
+
+Utilize o padrão mais adequado à arquitetura atual.
+
+Essa função deve consultar os dados reais da assinatura do usuário e retornar acesso somente quando a assinatura estiver válida.
+
+Não quero lógica duplicada espalhada pelo projeto.
+
+## Quando considerar um usuário Pro
+
+Analise como o projeto já salva os dados vindos do Stripe.
+
+O usuário só deve ter acesso Pro caso exista uma assinatura válida associada a ele.
+
+Por exemplo, dependendo de como o Stripe está configurado, estados válidos podem incluir:
+
+* active
+* trialing, caso exista período de teste
+
+Estados como estes NÃO devem liberar acesso Pro:
+
+* canceled
+* unpaid
+* incomplete
+* incomplete_expired
+* paused
+* expired
+
+Analise a implementação atual antes de alterar essa regra para evitar incompatibilidade com o fluxo já existente.
+
+Não confie em nenhuma informação enviada pelo frontend dizendo que o usuário é Pro.
+
+A fonte de verdade deve ser o backend/banco de dados sincronizado com Stripe.
+
+## Proteção das rotas/API
+
+Localize todas as rotas/endpoints/server actions/functions responsáveis pela IA por voz e foto da nota fiscal.
+
+Proteja TODAS elas.
+
+Exemplo de comportamento:
+
+Usuário autenticado + Pro:
+→ operação permitida.
+
+Usuário autenticado + Free:
+→ retornar erro de autorização.
+
+Utilize um status HTTP apropriado, como:
+
+`403 Forbidden`
+
+E uma resposta estruturada semelhante a:
+
+```json
+{
+  "error": "PRO_REQUIRED",
+  "message": "Esta funcionalidade está disponível apenas no Rachador Pro."
+}
+```
+
+Adapte ao padrão atual da API.
+
+É importante que mesmo que um usuário Free tente chamar diretamente a API, ele não consiga utilizar essas funcionalidades.
+
+## Frontend
+
+Além da proteção no backend, ajuste o frontend.
+
+Quando o usuário Free visualizar as funcionalidades:
+
+### IA por voz
+
+Deve aparecer visualmente como recurso Pro.
+
+Exemplo:
+
+🎙️ Dividir com IA por voz
+**PRO**
+
+Ao tentar acessar, não executar a funcionalidade.
+
+Abrir o paywall ou a página de planos.
+
+### Foto da nota fiscal
+
+Também deve aparecer como:
+
+📷 Escanear nota fiscal
+**PRO**
+
+Ao tentar acessar:
+
+→ abrir tela de planos/paywall.
+
+Não iniciar upload, OCR ou chamada de IA antes de confirmar que o usuário tem acesso Pro.
+
+## Usuário Pro
+
+Para usuários com assinatura Pro válida:
+
+* Não mostrar bloqueio
+* Não abrir paywall
+* Permitir uso normalmente
+* Não exigir nenhuma ação adicional
+
+## Atualização de assinatura
+
+Verifique também se o status do usuário é atualizado corretamente depois dos webhooks do Stripe.
+
+Quero garantir os seguintes comportamentos:
+
+### Nova assinatura
+
+Stripe confirma assinatura → usuário passa a ser Pro.
+
+### Renovação
+
+Assinatura continua ativa → usuário continua Pro.
+
+### Cancelamento no fim do período
+
+Se a assinatura foi cancelada, mas o usuário ainda possui acesso até o final do período pago, respeite o `current_period_end` ou mecanismo equivalente já utilizado no projeto.
+
+Depois do término efetivo:
+
+→ usuário volta para Free.
+
+### Falha definitiva ou expiração
+
+→ remover acesso Pro.
+
+### Nova assinatura após cancelamento
+
+→ restaurar acesso Pro corretamente.
+
+## Centralizar as permissões
+
+Se ainda não existir, crie uma estrutura central de permissões.
+
+Algo conceitualmente semelhante a:
+
+```ts
+const PLAN_FEATURES = {
+  free: {
+    manualExpenses: true,
+    groups: true,
+    voiceAI: false,
+    receiptAI: false
+  },
+  pro: {
+    manualExpenses: true,
+    groups: true,
+    voiceAI: true,
+    receiptAI: true
+  }
+}
+```
+
+Isso é apenas um exemplo.
+
+Adapte para a linguagem e arquitetura do projeto.
+
+O importante é evitar verificações como:
+
+```ts
+if (plan === "pro")
+```
+
+espalhadas em dezenas de arquivos.
+
+Quero uma única fonte de verdade para permissões.
+
+## Atenção especial a custos de IA
+
+É extremamente importante que a verificação do plano aconteça **ANTES** de qualquer chamada paga para serviços externos.
+
+Por exemplo:
+
+FREE:
+usuário envia áudio
+→ verificar plano
+→ bloquear
+→ NÃO chamar OpenAI/transcrição.
+
+FREE:
+usuário envia nota
+→ verificar plano
+→ bloquear
+→ NÃO executar OCR/IA.
+
+PRO:
+→ verificar plano
+→ processar normalmente.
+
+Isso evita que usuários Free gerem custos de API mesmo que o frontend tenha algum bug.
+
+## O que quero que você faça agora
+
+Antes de modificar qualquer coisa:
+
+1. Analise como os planos Free e Pro estão atualmente armazenados.
+2. Localize a integração existente com Stripe.
+3. Identifique qual campo/status atualmente determina se um usuário é Pro.
+4. Localize todas as rotas e componentes relacionados a IA por voz.
+5. Localize todas as rotas e componentes relacionados a foto da nota fiscal.
+6. Identifique onde está a falha que permite que usuários Free usem recursos Pro.
+
+Depois:
+
+7. Crie uma camada centralizada de autorização.
+8. Proteja as rotas no backend.
+9. Proteja as ações/server functions relevantes.
+10. Ajuste o frontend para mostrar bloqueio/paywall.
+11. Garanta que usuários Pro continuem utilizando normalmente.
+12. Não altere a integração de pagamentos que já está funcionando, a menos que seja necessário para corrigir a autorização.
+
+## Testes obrigatórios
+
+Teste pelo menos estes cenários:
+
+**Usuário Free**
+
+* consegue criar grupo
+* consegue adicionar gasto manual
+* NÃO consegue utilizar IA por voz
+* NÃO consegue processar nota fiscal
+* ao tentar acessar recurso Pro, recebe paywall
+* se tentar chamar a API diretamente, recebe bloqueio 403
+* nenhuma chamada paga de IA é realizada
+
+**Usuário Pro**
+
+* consegue criar grupo
+* consegue adicionar gasto manual
+* consegue usar IA por voz
+* consegue usar foto da nota fiscal
+
+**Assinatura**
+
+* Free → assinatura aprovada → Pro liberado
+* Pro → cancelamento com período ainda válido → acesso permanece até o fim
+* período termina → volta para Free
+* assinatura reativada → acesso Pro retorna
+
+Ao finalizar, me explique:
+
+* onde estava o problema
+* quais arquivos foram alterados
+* qual é a nova lógica de autorização
+* onde ficam definidas as permissões Free/Pro
+* quais endpoints agora estão protegidos
+* como posso testar manualmente um usuário Free e um usuário Pro
+
+Não recrie a integração do Stripe do zero. O pagamento já funciona. O foco desta tarefa é **corrigir o controle de acesso e impedir que usuários Free consumam funcionalidades do Rachador Pro**.

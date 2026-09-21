@@ -25,5 +25,6 @@ channel = "stable-25_05"
 [userenv]
 
 [userenv.shared]
-STRIPE_PRICE_MONTHLY_ID = "price_1UFaFtDtBlolBz3DEupwNMyD"
-STRIPE_PRICE_YEARLY_ID = "price_1UFaFtDtBlolBz3DHCS8udnL"
+ABACATEPAY_RETURN_URL = "https://rachador.replit.app/planos"
+ABACATEPAY_ANNUAL_PRODUCT_ID = "prod_1epFnjGQhZJb1pLW6gqqgYPm"
+ABACATEPAY_MONTHLY_PRODUCT_ID = "prod_xuQjxbyKKKsjabTtchUWf1Qg"

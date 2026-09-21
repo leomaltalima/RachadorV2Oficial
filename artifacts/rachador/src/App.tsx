@@ -19,7 +19,8 @@ import CreateGroup from '@/pages/create-group';
 import JoinGroup from '@/pages/join-group';
 import GroupDashboard from '@/pages/group-dashboard';
 import AddExpense from '@/pages/add-expense';
-import PlansPage from '@/pages/plans';
+import Planos from '@/pages/planos';
+import Conta from '@/pages/conta';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -161,7 +162,8 @@ function Router() {
         <Route path="/g/:grupoId/entrar" component={JoinGroup} />
         <Route path="/g/:grupoId" component={GroupDashboard} />
         <Route path="/g/:grupoId/nova-despesa" component={AddExpense} />
-        <Route path="/planos" component={PlansPage} />
+        <Route path="/planos" component={Planos} />
+        <Route path="/conta" component={Conta} />
         <Route component={NotFound} />
       </Switch>
     </RoutedErrorBoundary>

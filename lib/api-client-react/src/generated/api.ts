@@ -20,6 +20,13 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  AbacateWebhookPayload,
+  BillingCancelResponse,
+  BillingCheckoutInput,
+  BillingCheckoutResponse,
+  BillingMe,
+  BillingPixSimulationInput,
+  BillingPixSimulationResponse,
   DespesaComDivisoes,
   DespesaInput,
   ErrorResponse,
@@ -31,6 +38,7 @@ import type {
   Participante,
   ParticipanteInput,
   ParticipanteUpdate,
+  ReceiveAbacatePayWebhookParams,
   Saldo,
   VoiceExpenseParseInput,
   VoiceExpenseParseResponse
@@ -730,6 +738,375 @@ export const useParseVoiceExpenses = <TError = ErrorType<ErrorResponse>,
         TContext
       > => {
       return useMutation(getParseVoiceExpensesMutationOptions(options));
+    }
+
+export const getGetBillingMeUrl = () => {
+
+
+
+
+  return `/api/billing/me`
+}
+
+/**
+ * @summary Get the authenticated user's paid plan
+ */
+export const getBillingMe = async ( options?: Parameters<typeof customFetch>[1]): Promise<BillingMe> => {
+
+  return customFetch<BillingMe>(getGetBillingMeUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetBillingMeQueryKey = () => {
+    return [
+    `/api/billing/me`
+    ] as const;
+    }
+
+
+export const getGetBillingMeQueryOptions = <TData = Awaited<ReturnType<typeof getBillingMe>>, TError = ErrorType<ErrorResponse>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getBillingMe>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetBillingMeQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getBillingMe>>> = ({ signal }) => getBillingMe({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getBillingMe>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetBillingMeQueryResult = NonNullable<Awaited<ReturnType<typeof getBillingMe>>>
+export type GetBillingMeQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary Get the authenticated user's paid plan
+ */
+
+export function useGetBillingMe<TData = Awaited<ReturnType<typeof getBillingMe>>, TError = ErrorType<ErrorResponse>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getBillingMe>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetBillingMeQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateBillingCheckoutUrl = () => {
+
+
+
+
+  return `/api/billing/checkout`
+}
+
+/**
+ * @summary Create an AbacatePay PIX checkout
+ */
+export const createBillingCheckout = async (billingCheckoutInput: BillingCheckoutInput, options?: Parameters<typeof customFetch>[1]): Promise<BillingCheckoutResponse> => {
+
+  return customFetch<BillingCheckoutResponse>(getCreateBillingCheckoutUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(billingCheckoutInput)
+  }
+);}
+
+
+
+
+
+export const getCreateBillingCheckoutMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createBillingCheckout>>, TError,{data: BodyType<BillingCheckoutInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createBillingCheckout>>, TError,{data: BodyType<BillingCheckoutInput>}, TContext> => {
+
+const mutationKey = ['createBillingCheckout'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createBillingCheckout>>, {data: BodyType<BillingCheckoutInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createBillingCheckout(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateBillingCheckoutMutationResult = NonNullable<Awaited<ReturnType<typeof createBillingCheckout>>>
+    export type CreateBillingCheckoutMutationBody = BodyType<BillingCheckoutInput>
+    export type CreateBillingCheckoutMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Create an AbacatePay PIX checkout
+ */
+export const useCreateBillingCheckout = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createBillingCheckout>>, TError,{data: BodyType<BillingCheckoutInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createBillingCheckout>>,
+        TError,
+        {data: BodyType<BillingCheckoutInput>},
+        TContext
+      > => {
+      return useMutation(getCreateBillingCheckoutMutationOptions(options));
+    }
+
+export const getSimulateBillingPixPaymentUrl = () => {
+
+
+
+
+  return `/api/billing/pix/simulate`
+}
+
+/**
+ * @summary Simulate a Dev mode PIX payment
+ */
+export const simulateBillingPixPayment = async (billingPixSimulationInput: BillingPixSimulationInput, options?: Parameters<typeof customFetch>[1]): Promise<BillingPixSimulationResponse> => {
+
+  return customFetch<BillingPixSimulationResponse>(getSimulateBillingPixPaymentUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(billingPixSimulationInput)
+  }
+);}
+
+
+
+
+
+export const getSimulateBillingPixPaymentMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof simulateBillingPixPayment>>, TError,{data: BodyType<BillingPixSimulationInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof simulateBillingPixPayment>>, TError,{data: BodyType<BillingPixSimulationInput>}, TContext> => {
+
+const mutationKey = ['simulateBillingPixPayment'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof simulateBillingPixPayment>>, {data: BodyType<BillingPixSimulationInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  simulateBillingPixPayment(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SimulateBillingPixPaymentMutationResult = NonNullable<Awaited<ReturnType<typeof simulateBillingPixPayment>>>
+    export type SimulateBillingPixPaymentMutationBody = BodyType<BillingPixSimulationInput>
+    export type SimulateBillingPixPaymentMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Simulate a Dev mode PIX payment
+ */
+export const useSimulateBillingPixPayment = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof simulateBillingPixPayment>>, TError,{data: BodyType<BillingPixSimulationInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof simulateBillingPixPayment>>,
+        TError,
+        {data: BodyType<BillingPixSimulationInput>},
+        TContext
+      > => {
+      return useMutation(getSimulateBillingPixPaymentMutationOptions(options));
+    }
+
+export const getCancelBillingSubscriptionUrl = () => {
+
+
+
+
+  return `/api/billing/cancel`
+}
+
+/**
+ * @summary Request cancellation at AbacatePay
+ */
+export const cancelBillingSubscription = async ( options?: Parameters<typeof customFetch>[1]): Promise<BillingCancelResponse> => {
+
+  return customFetch<BillingCancelResponse>(getCancelBillingSubscriptionUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getCancelBillingSubscriptionMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cancelBillingSubscription>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof cancelBillingSubscription>>, TError,void, TContext> => {
+
+const mutationKey = ['cancelBillingSubscription'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof cancelBillingSubscription>>, void> = () => {
+
+
+          return  cancelBillingSubscription(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CancelBillingSubscriptionMutationResult = NonNullable<Awaited<ReturnType<typeof cancelBillingSubscription>>>
+
+    export type CancelBillingSubscriptionMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Request cancellation at AbacatePay
+ */
+export const useCancelBillingSubscription = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cancelBillingSubscription>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof cancelBillingSubscription>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getCancelBillingSubscriptionMutationOptions(options));
+    }
+
+export const getReceiveAbacatePayWebhookUrl = (params: ReceiveAbacatePayWebhookParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/webhooks/abacatepay?${stringifiedParams}` : `/api/webhooks/abacatepay`
+}
+
+/**
+ * @summary Receive an authenticated AbacatePay v2 webhook
+ */
+export const receiveAbacatePayWebhook = async (abacateWebhookPayload: AbacateWebhookPayload,
+    params: ReceiveAbacatePayWebhookParams, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getReceiveAbacatePayWebhookUrl(params),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(abacateWebhookPayload)
+  }
+);}
+
+
+
+
+
+export const getReceiveAbacatePayWebhookMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof receiveAbacatePayWebhook>>, TError,{data: BodyType<AbacateWebhookPayload>;params: ReceiveAbacatePayWebhookParams}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof receiveAbacatePayWebhook>>, TError,{data: BodyType<AbacateWebhookPayload>;params: ReceiveAbacatePayWebhookParams}, TContext> => {
+
+const mutationKey = ['receiveAbacatePayWebhook'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof receiveAbacatePayWebhook>>, {data: BodyType<AbacateWebhookPayload>;params: ReceiveAbacatePayWebhookParams}> = (props) => {
+          const {data,params} = props ?? {};
+
+          return  receiveAbacatePayWebhook(data,params,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReceiveAbacatePayWebhookMutationResult = NonNullable<Awaited<ReturnType<typeof receiveAbacatePayWebhook>>>
+    export type ReceiveAbacatePayWebhookMutationBody = BodyType<AbacateWebhookPayload>
+    export type ReceiveAbacatePayWebhookMutationError = ErrorType<void>
+
+    /**
+ * @summary Receive an authenticated AbacatePay v2 webhook
+ */
+export const useReceiveAbacatePayWebhook = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof receiveAbacatePayWebhook>>, TError,{data: BodyType<AbacateWebhookPayload>;params: ReceiveAbacatePayWebhookParams}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof receiveAbacatePayWebhook>>,
+        TError,
+        {data: BodyType<AbacateWebhookPayload>;params: ReceiveAbacatePayWebhookParams},
+        TContext
+      > => {
+      return useMutation(getReceiveAbacatePayWebhookMutationOptions(options));
     }
 
 export const getDeleteDespesaUrl = (id: number,) => {

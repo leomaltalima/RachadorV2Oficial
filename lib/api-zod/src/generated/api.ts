@@ -296,6 +296,82 @@ export const ParseVoiceExpensesResponse = zod.object({
 
 
 /**
+ * @summary Get the authenticated user's paid plan
+ */
+export const GetBillingMeResponse = zod.object({
+  "plan": zod.enum(['FREE', 'PRO', 'MASTER']),
+  "pendingPlan": zod.union([zod.literal('PRO'),zod.literal('MASTER'),zod.literal(null)]).nullable(),
+  "status": zod.string(),
+  "billingCycle": zod.union([zod.literal('one_time'),zod.literal(null)]).nullable(),
+  "amount": zod.number().nullable(),
+  "startedAt": zod.coerce.date().nullable(),
+  "nextBillingAt": zod.coerce.date().nullable(),
+  "canceledAt": zod.coerce.date().nullable(),
+  "checkoutId": zod.string().nullable(),
+  "paymentMethod": zod.union([zod.literal('PIX'),zod.literal(null)]).nullable(),
+  "pixCode": zod.string().nullable(),
+  "pixQrCode": zod.string().nullable(),
+  "pixExpiresAt": zod.coerce.date().nullable()
+})
+
+
+/**
+ * @summary Create an AbacatePay PIX checkout
+ */
+export const CreateBillingCheckoutBody = zod.object({
+  "plan": zod.enum(['PRO', 'MASTER'])
+})
+
+export const CreateBillingCheckoutResponse = zod.object({
+  "checkoutUrl": zod.string().nullish(),
+  "checkoutId": zod.string(),
+  "plan": zod.enum(['PRO', 'MASTER']),
+  "paymentMethod": zod.enum(['PIX']),
+  "pixCode": zod.string(),
+  "pixQrCode": zod.string(),
+  "pixExpiresAt": zod.coerce.date().nullable(),
+  "devMode": zod.boolean()
+})
+
+
+/**
+ * @summary Simulate a Dev mode PIX payment
+ */
+export const SimulateBillingPixPaymentBody = zod.object({
+  "checkoutId": zod.string()
+})
+
+export const SimulateBillingPixPaymentResponse = zod.object({
+  "checkoutId": zod.string(),
+  "status": zod.string()
+})
+
+
+/**
+ * @summary Request cancellation at AbacatePay
+ */
+export const CancelBillingSubscriptionResponse = zod.object({
+  "status": zod.enum(['cancellation_requested'])
+})
+
+
+/**
+ * @summary Receive an authenticated AbacatePay v2 webhook
+ */
+export const ReceiveAbacatePayWebhookQueryParams = zod.object({
+  "webhookSecret": zod.coerce.string()
+})
+
+export const ReceiveAbacatePayWebhookHeader = zod.object({
+  "X-Webhook-Signature": zod.string()
+})
+
+export const ReceiveAbacatePayWebhookBody = zod.record(zod.string(), zod.unknown())
+
+export const ReceiveAbacatePayWebhookResponse = zod.unknown()
+
+
+/**
  * @summary Delete expense
  */
 export const DeleteDespesaParams = zod.object({

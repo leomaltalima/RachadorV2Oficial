@@ -74,6 +74,7 @@ export default function GroupDashboard() {
   }, [myParticipantId, grupoId, setLocation])
 
   const [activeTab, setActiveTab] = useState("despesas")
+  const [isMembersOpen, setIsMembersOpen] = useState(false)
   const [isAddParticipantOpen, setIsAddParticipantOpen] = useState(false)
   const [newParticipantName, setNewParticipantName] = useState("")
   const [newParticipantPix, setNewParticipantPix] = useState("")
@@ -371,6 +372,84 @@ export default function GroupDashboard() {
 
           {/* Chip do usuário logado */}
           <div className="shrink-0 flex items-center gap-1">
+            <Dialog open={isMembersOpen} onOpenChange={(open) => {
+              setIsMembersOpen(open)
+              if (!open) setRemovingParticipantId(null)
+            }}>
+              <DialogTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-9 w-9 rounded-full"
+                  aria-label="Gerenciar pessoas do grupo"
+                  title="Pessoas do grupo"
+                >
+                  <UserMinus className="h-5 w-5" />
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-h-[85dvh] overflow-y-auto sm:max-w-md">
+                <DialogHeader>
+                  <DialogTitle>Pessoas do grupo</DialogTitle>
+                  <DialogDescription>
+                    Retire participantes que não fazem mais parte deste grupo.
+                  </DialogDescription>
+                </DialogHeader>
+
+                <div className="space-y-5 py-2">
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-sm font-bold">Participantes</h3>
+                      <span className="text-xs text-muted-foreground">{grupo.participantes.length} pessoa(s)</span>
+                    </div>
+                    <div className="divide-y overflow-hidden rounded-xl border bg-card">
+                      {grupo.participantes.map(participante => {
+                        const isMe = participante.id === myParticipantId
+                        const isConfirmingRemove = removingParticipantId === participante.id
+                        return (
+                          <div key={participante.id} className="flex items-center gap-3 p-3">
+                            <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-secondary">
+                              {participante.imagem ? (
+                                <img src={participante.imagem} alt="" className="h-full w-full object-cover" />
+                              ) : (
+                                <span className="text-sm font-bold text-muted-foreground">
+                                  {participante.nome.charAt(0).toUpperCase()}
+                                </span>
+                              )}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate text-sm font-semibold">
+                                {participante.nome}
+                                {isMe && <span className="ml-1.5 text-xs font-medium text-primary">(você)</span>}
+                              </p>
+                              {participante.chavePix && (
+                                <p className="truncate text-xs text-muted-foreground">Pix: {participante.chavePix}</p>
+                              )}
+                            </div>
+                            {isCreator && !isMe && (
+                              <Button
+                                variant={isConfirmingRemove ? "destructive" : "outline"}
+                                size="sm"
+                                onClick={() => handleRemoveParticipant(participante.id, participante.nome)}
+                                className="shrink-0"
+                              >
+                                <UserMinus className="mr-1.5 h-4 w-4" />
+                                {isConfirmingRemove ? "Confirmar" : "Retirar"}
+                              </Button>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                    {!isCreator && (
+                      <p className="text-xs text-muted-foreground">
+                        Apenas quem criou o grupo pode retirar participantes.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </DialogContent>
+            </Dialog>
+
             {isSignedIn && (
               <div className="relative group/avatar">
                 <button

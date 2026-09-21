@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react"
 import { useLocation, useParams } from "wouter"
-import { useGetGrupo, useCreateDespesa, getListDespesasQueryKey, getGetSaldoQueryKey, getGetGrupoQueryKey } from "@workspace/api-client-react"
+import { useGetGrupo, useCreateDespesa, getListDespesasQueryKey, getGetSaldoQueryKey, getGetGrupoQueryKey, useGetBillingMe } from "@workspace/api-client-react"
 import { useQueryClient } from "@tanstack/react-query"
 
 import { Button } from "@/components/ui/button"
@@ -15,8 +15,6 @@ import { ReceiptScanner } from "@/components/receipt-scanner"
 
 import { ArrowLeft, Calculator, Users, UserCheck, Check, ScanLine, Percent, PieChart, Tag, Mic } from "lucide-react"
 import { VoiceExpenseFlow } from "@/components/voice-expense-flow"
-import { Paywall } from "@/components/paywall"
-import { getBillingSummary } from "@/lib/billing"
 
 type SplitMode = "equal" | "select" | "custom" | "percentage" | "shares"
 
@@ -70,6 +68,10 @@ export default function AddExpense() {
   const { data: grupo } = useGetGrupo(grupoId, { query: { enabled: !!grupoId, queryKey: getGetGrupoQueryKey(grupoId) } })
   const createDespesa = useCreateDespesa()
 
+  const { data: billing } = useGetBillingMe()
+  const isPaid = billing?.plan === "PRO" || billing?.plan === "MASTER"
+  const isMaster = billing?.plan === "MASTER"
+
   const [descricao, setDescricao] = useState("")
   const [valorStr, setValorStr] = useState("")
   const [pagoPorId, setPagoPorId] = useState<string>(() => {
@@ -79,7 +81,6 @@ export default function AddExpense() {
   const [splitMode, setSplitMode] = useState<SplitMode>("equal")
   const [showScanner, setShowScanner] = useState(false)
   const [showVoiceFlow, setShowVoiceFlow] = useState(false)
-  const [showPaywall, setShowPaywall] = useState(false)
   const [categoria, setCategoria] = useState<string>(() => {
     const saved = localStorage.getItem("rachador_last_category")
     return (saved && CATEGORIES.includes(saved)) ? saved : "Outros"
@@ -88,19 +89,6 @@ export default function AddExpense() {
   const handleCategoryChange = (val: string) => {
     setCategoria(val)
     localStorage.setItem("rachador_last_category", val)
-  }
-
-  const openPremiumFeature = async (open: () => void) => {
-    try {
-      const billing = await getBillingSummary()
-      if (billing.plan === "free" && billing.usage.remaining === 0) {
-        setShowPaywall(true)
-        return
-      }
-    } catch {
-      // The backend remains the source of truth if the pre-check cannot load.
-    }
-    open()
   }
 
   // For "select" mode – who's splitting (all selected by default after group loads)
@@ -304,7 +292,6 @@ export default function AddExpense() {
           participantes={grupo.participantes}
           onApply={handleReceiptApply}
           onClose={() => setShowScanner(false)}
-          onPaywall={() => { setShowScanner(false); setShowPaywall(true) }}
         />
       )}
 
@@ -312,10 +299,8 @@ export default function AddExpense() {
         <VoiceExpenseFlow
           grupo={grupo}
           onClose={() => setShowVoiceFlow(false)}
-          onPaywall={() => { setShowVoiceFlow(false); setShowPaywall(true) }}
         />
       )}
-      {showPaywall && <Paywall feature="voz e foto de nota fiscal" onClose={() => setShowPaywall(false)} />}
 
       <div className="min-h-[100dvh] flex flex-col p-4 sm:p-8 max-w-2xl mx-auto w-full bg-background">
         <header className="flex items-center gap-3 mb-6">
@@ -331,13 +316,18 @@ export default function AddExpense() {
               type="button"
               variant="outline"
               className="h-20 border-2 border-dashed border-primary/40 bg-primary/5 hover:bg-primary/10 hover:border-primary/60 transition-all text-left group flex items-center justify-start gap-4 px-5 rounded-2xl shadow-sm"
-               onClick={() => void openPremiumFeature(() => setShowVoiceFlow(true))}
+               onClick={() => isMaster ? setShowVoiceFlow(true) : setLocation("/planos")}
             >
               <div className="w-12 h-12 rounded-xl bg-primary/15 flex items-center justify-center shrink-0 group-hover:bg-primary/25 transition-colors">
                 <Mic className="w-6 h-6 text-primary" />
               </div>
               <div>
-                 <p className="flex items-center gap-2 font-semibold text-base text-foreground">Adicionar por voz <span className="rounded bg-primary px-1.5 py-0.5 text-[10px] font-bold text-primary-foreground">PRO</span></p>
+                 <p className="flex items-center gap-2 font-semibold text-base text-foreground">
+                   Adicionar por voz
+                    <span className={`rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${isMaster ? "bg-primary/20 text-primary" : "bg-primary text-primary-foreground shadow-sm"}`}>
+                      {isMaster ? "MASTER" : "Assinar MASTER"}
+                   </span>
+                 </p>
                 <p className="text-sm text-muted-foreground">A IA entende o que você falar e cria as despesas</p>
               </div>
             </Button>
@@ -511,14 +501,19 @@ export default function AddExpense() {
                 {/* Scan receipt button */}
                 <button
                   type="button"
-                  onClick={() => setShowScanner(true)}
+                  onClick={() => isPaid ? setShowScanner(true) : setLocation("/planos")}
                   className="w-full flex items-center gap-3 p-4 rounded-2xl border-2 border-dashed border-primary/40 bg-primary/5 hover:bg-primary/10 hover:border-primary/60 transition-all text-left group"
                 >
                   <div className="w-10 h-10 rounded-xl bg-primary/15 flex items-center justify-center shrink-0 group-hover:bg-primary/25 transition-colors">
                     <ScanLine className="w-5 h-5 text-primary" />
                   </div>
                   <div>
-                    <p className="font-semibold text-sm text-foreground">Escanear nota fiscal</p>
+                    <p className="flex items-center gap-2 font-semibold text-sm text-foreground">
+                      Escanear nota fiscal
+                      <span className={`rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${isPaid ? "bg-primary/20 text-primary" : "bg-primary text-primary-foreground shadow-sm"}`}>
+                        {isPaid ? "PRO" : "Assinar PRO"}
+                      </span>
+                    </p>
                     <p className="text-xs text-muted-foreground">A IA lê os itens e divide automaticamente</p>
                   </div>
                 </button>

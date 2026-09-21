@@ -5,9 +5,9 @@ import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { useGetGrupoByCodigo, getGetGrupoByCodigoQueryKey } from "@workspace/api-client-react"
+import { useGetGrupoByCodigo, getGetGrupoByCodigoQueryKey, useGetBillingMe, getGetBillingMeQueryKey } from "@workspace/api-client-react"
 import { getSession, setSession, clearSession } from "@/lib/session"
-import { PlusCircle, LogOut, Users, ChevronRight, DoorOpen, Crown } from "lucide-react"
+import { PlusCircle, LogOut, Users, ChevronRight, DoorOpen, Sparkles, Settings } from "lucide-react"
 import { formatCurrency } from "@/lib/utils"
 
 interface MeuGrupo {
@@ -38,13 +38,23 @@ export default function Home() {
   }, [isLoaded, isSignedIn, setLocation])
 
   const { data: grupo, isError } = useGetGrupoByCodigo(codigo, {
-    query: { enabled: codigo.length === 6, queryKey: getGetGrupoByCodigoQueryKey(codigo) }
+    query: {
+      enabled: codigo.length === 6 || codigo.length === 8,
+      queryKey: getGetGrupoByCodigoQueryKey(codigo),
+    }
   })
 
   // Whenever a group is found by code, go to identify screen.
   if (grupo) {
     setLocation(`/g/${grupo.id}/entrar`)
   }
+
+  // Get Billing
+  const { data: billing } = useGetBillingMe({
+    query: { enabled: !!isSignedIn, queryKey: getGetBillingMeQueryKey() }
+  })
+  const isPaid = billing?.plan === "PRO" || billing?.plan === "MASTER"
+  const planLabel = billing?.plan === "MASTER" ? "MASTER" : "PRO"
 
   // Fetch user's groups when signed in
   const { data: meusGrupos, isLoading: loadingGrupos } = useQuery<MeuGrupo[]>({
@@ -94,7 +104,7 @@ export default function Home() {
         {/* Header */}
         <div className="text-center space-y-2">
           <img
-            src={`${import.meta.env.BASE_URL}logo-transparent.png`}
+            src="/logo-transparent.png"
             alt="Logo do Rachador"
             className="w-20 h-20 object-contain mx-auto mb-4"
           />
@@ -103,40 +113,69 @@ export default function Home() {
         </div>
 
         {/* User chip */}
-        <div className="flex items-center justify-between bg-secondary/60 rounded-2xl px-4 py-3">
-          <div className="flex items-center gap-3">
-            {user?.imageUrl ? (
-              <img src={user.imageUrl} className="w-8 h-8 rounded-full" alt="" />
-            ) : (
-              <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center">
-                <span className="text-xs font-bold text-primary">
-                  {user?.firstName?.charAt(0) ?? user?.emailAddresses?.[0]?.emailAddress?.charAt(0) ?? "?"}
-                </span>
+        <div className="rounded-2xl bg-secondary/60 px-4 py-3">
+          <div className="flex items-center justify-between">
+            <div className="flex min-w-0 items-center gap-3">
+              {user?.imageUrl ? (
+                <img src={user.imageUrl} className="h-9 w-9 rounded-full" alt="" />
+              ) : (
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/20">
+                  <span className="text-sm font-bold text-primary">
+                    {user?.firstName?.charAt(0) ?? user?.emailAddresses?.[0]?.emailAddress?.charAt(0) ?? "?"}
+                  </span>
+                </div>
+              )}
+              <div className="min-w-0">
+                <p className="truncate text-sm font-bold text-foreground">
+                  {user?.firstName ?? user?.emailAddresses?.[0]?.emailAddress}
+                </p>
+                <p className="truncate text-xs text-muted-foreground">
+                  {user?.emailAddresses?.[0]?.emailAddress}
+                </p>
               </div>
-            )}
-            <div className="min-w-0">
-              <p className="text-sm font-bold text-foreground truncate">
-                {user?.firstName ?? user?.emailAddresses?.[0]?.emailAddress}
-              </p>
-              <p className="text-xs text-muted-foreground truncate">
-                {user?.emailAddresses?.[0]?.emailAddress}
-              </p>
+            </div>
+            <div className="flex shrink-0 items-center gap-1">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="text-muted-foreground transition-colors hover:text-primary"
+                onClick={() => setLocation("/conta")}
+                title="Minha conta"
+                aria-label="Minha conta"
+              >
+                <Settings className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="text-muted-foreground transition-colors hover:text-destructive"
+                onClick={() => signOut()}
+                title="Sair"
+                aria-label="Sair"
+              >
+                <LogOut className="h-4 w-4" />
+              </Button>
             </div>
           </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="text-muted-foreground hover:text-destructive shrink-0"
-            onClick={() => signOut()}
+          <button
+            type="button"
+            onClick={() => setLocation("/planos")}
+            className="mt-3 flex w-full items-center justify-between border-t border-border/50 pt-3 text-left transition-colors hover:text-primary"
           >
-            <LogOut className="w-4 h-4" />
-          </Button>
+            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Plano atual</span>
+            <span className="flex items-center gap-2 text-xs font-bold">
+              {isPaid ? (
+                <>
+                  <Sparkles className="h-3.5 w-3.5 text-primary" />
+                  <span className="text-primary">Rachador {planLabel} · Ativo</span>
+                </>
+              ) : (
+                <span className="text-foreground">Gratuito</span>
+              )}
+              <ChevronRight className="h-4 w-4 text-muted-foreground" />
+            </span>
+          </button>
         </div>
-
-        <Button variant="outline" className="w-full justify-between rounded-2xl border-primary/30 bg-primary/5" onClick={() => setLocation("/planos")}>
-          <span className="flex items-center gap-2"><Crown className="h-4 w-4 text-primary" /> Planos e minha assinatura</span>
-          <ChevronRight className="h-4 w-4" />
-        </Button>
 
         {/* My groups */}
         <div className="space-y-2">
@@ -206,19 +245,19 @@ export default function Home() {
         <Card className="border-border/50 shadow-xl shadow-primary/5">
           <CardHeader>
             <CardTitle>Código de convite</CardTitle>
-            <CardDescription>Digite o código de 6 letras que seu amigo enviou.</CardDescription>
+            <CardDescription>Digite o código de convite que seu amigo enviou.</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
               <div className="relative">
                 <Input
-                  placeholder="Ex: ABCDEF"
-                  className="h-14 text-center text-xl font-bold uppercase tracking-widest"
-                  maxLength={6}
+                  placeholder="Ex: ABCD1234"
+                  className="h-14 text-center text-xl font-bold tracking-widest"
+                  maxLength={8}
                   value={codigo}
-                  onChange={(e) => setCodigo(e.target.value.toUpperCase())}
+                  onChange={(e) => setCodigo(e.target.value)}
                 />
-                {codigo.length === 6 && !grupo && !isError && (
+                {(codigo.length === 6 || codigo.length === 8) && !grupo && !isError && (
                   <div className="absolute right-4 top-4">
                     <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
                   </div>

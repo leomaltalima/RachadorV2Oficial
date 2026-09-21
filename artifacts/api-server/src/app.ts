@@ -10,7 +10,7 @@ import {
 } from "./middlewares/clerkProxyMiddleware";
 import router from "./routes";
 import { logger } from "./lib/logger";
-import { WebhookHandlers } from "./webhookHandlers";
+import abacateWebhookRouter from "./routes/abacateWebhook";
 
 const app: Express = express();
 
@@ -37,26 +37,13 @@ app.use(
 // Clerk proxy must come before body parsers (streams raw bytes)
 app.use(CLERK_PROXY_PATH, clerkProxyMiddleware());
 
-app.post(
-  "/api/stripe/webhook",
-  express.raw({ type: "application/json" }),
-  async (req, res): Promise<void> => {
-    const signature = req.headers["stripe-signature"];
-    if (!signature) {
-      res.status(400).json({ error: "Assinatura Stripe ausente." });
-      return;
-    }
-    try {
-      await WebhookHandlers.processWebhook(req.body as Buffer, Array.isArray(signature) ? signature[0] : signature);
-      res.status(200).json({ received: true });
-    } catch (error) {
-      logger.error({ err: error }, "Erro ao processar webhook Stripe");
-      res.status(400).json({ error: "Webhook Stripe inválido." });
-    }
-  },
-);
-
 app.use(cors({ credentials: true, origin: true }));
+// This public endpoint must receive the untouched bytes for HMAC verification.
+app.use(
+  "/api/webhooks/abacatepay",
+  express.raw({ type: "application/json", limit: "1mb" }),
+  abacateWebhookRouter,
+);
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
 

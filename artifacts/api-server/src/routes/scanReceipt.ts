@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { openai } from "@workspace/integrations-openai-ai-server";
 import { getAuth } from "@clerk/express";
-import { reserveAiUse } from "../billing";
+import { requireFeatureAccess } from "../lib/planPermissions";
 
 const router = Router();
 
@@ -12,16 +12,7 @@ router.post("/scan-receipt", async (req, res) => {
       res.status(401).json({ error: "Faça login para usar o scanner de notas." });
       return;
     }
-    const usage = await reserveAiUse(userId, "receipt");
-    if (!usage.allowed) {
-      res.status(402).json({
-        error: "Você atingiu o limite de 3 divisões automáticas gratuitas neste mês.",
-        code: "premium_required",
-        billing: usage.summary,
-      });
-      return;
-    }
-
+    if (!(await requireFeatureAccess(req, res, "receiptScanning"))) return;
     const { image } = req.body as { image: string };
 
     if (!image) {

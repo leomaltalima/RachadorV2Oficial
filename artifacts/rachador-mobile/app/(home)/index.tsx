@@ -17,7 +17,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useColors } from '@/hooks/useColors';
 import { useSession } from '@/context/SessionContext';
-import { getGrupoByCodigo } from '@workspace/api-client-react';
+import { getGrupoByCodigo, useGetBillingMe } from '@workspace/api-client-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth, useUser, useClerk } from '@clerk/expo';
 
@@ -61,6 +61,10 @@ export default function HomeScreen() {
     },
     enabled: !!isSignedIn,
   });
+
+  const { data: billing } = useGetBillingMe();
+  const isPaid = billing?.plan === 'PRO' || billing?.plan === 'MASTER';
+  const planLabel = billing?.plan === 'MASTER' ? 'Rachador MASTER' : 'Rachador PRO';
 
   const handleEnterGroup = async (g: MeuGrupo) => {
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -141,6 +145,7 @@ export default function HomeScreen() {
         </Text>
       </View>
 
+
       {/* User chip */}
       <View style={[styles.userChip, { backgroundColor: colors.card, borderColor: colors.border }]}>
         <View style={[styles.userAvatar, { backgroundColor: colors.primary + '22' }]}>
@@ -155,6 +160,13 @@ export default function HomeScreen() {
           )}
         </View>
         <Pressable
+          onPress={() => router.push('/conta')}
+          style={({ pressed }) => [styles.signOutButton, { opacity: pressed ? 0.6 : 1 }]}
+          hitSlop={8}
+        >
+          <Ionicons name="settings-outline" size={20} color={colors.mutedForeground} />
+        </Pressable>
+        <Pressable
           onPress={handleSignOut}
           style={({ pressed }) => [styles.signOutButton, { opacity: pressed ? 0.6 : 1 }]}
           hitSlop={8}
@@ -162,6 +174,25 @@ export default function HomeScreen() {
           <Ionicons name="log-out-outline" size={20} color={colors.mutedForeground} />
         </Pressable>
       </View>
+
+      {/* Plan chip */}
+      <Pressable
+        style={({ pressed }) => [
+          styles.planChip,
+          { backgroundColor: colors.card, borderColor: colors.border, opacity: pressed ? 0.8 : 1 }
+        ]}
+        onPress={() => router.push('/planos')}
+      >
+        <View style={styles.planChipContent}>
+          <Text style={[styles.planChipTitle, { color: colors.foreground }]}>Plano atual</Text>
+          <View style={[styles.planBadge, { backgroundColor: isPaid ? colors.primary + '1A' : colors.muted }]}>
+            <Text style={[styles.planBadgeText, { color: isPaid ? colors.primary : colors.mutedForeground }]}>
+              {isPaid ? planLabel : 'Gratuito'}
+            </Text>
+          </View>
+        </View>
+        <Ionicons name="chevron-forward" size={16} color={colors.mutedForeground} />
+      </Pressable>
 
       {/* My groups */}
       <View style={styles.section}>
@@ -242,7 +273,7 @@ export default function HomeScreen() {
       <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
         <Text style={[styles.cardTitle, { color: colors.foreground }]}>Código de convite</Text>
         <Text style={[styles.cardSubtitle, { color: colors.mutedForeground }]}>
-          Peça o código de 6 letras para alguém do grupo
+          Peça o código de convite para alguém do grupo
         </Text>
         <TextInput
           ref={inputRef}
@@ -255,12 +286,12 @@ export default function HomeScreen() {
             },
           ]}
           value={code}
-          onChangeText={(t) => setCode(t.toUpperCase())}
-          placeholder="ABCDEF"
+          onChangeText={setCode}
+          placeholder="ABCD1234"
           placeholderTextColor={colors.mutedForeground}
-          autoCapitalize="characters"
+          autoCapitalize="none"
           autoCorrect={false}
-          maxLength={6}
+          maxLength={8}
           returnKeyType="go"
           onSubmitEditing={handleEnterByCode}
         />
@@ -359,6 +390,34 @@ const styles = StyleSheet.create({
   },
   signOutButton: {
     padding: 4,
+  },
+  planChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    marginTop: -8,
+  },
+  planChipContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  planChipTitle: {
+    fontFamily: 'PlusJakartaSans_600SemiBold',
+    fontSize: 14,
+  },
+  planBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  planBadgeText: {
+    fontFamily: 'PlusJakartaSans_700Bold',
+    fontSize: 11,
   },
   section: {
     gap: 10,

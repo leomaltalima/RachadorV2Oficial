@@ -6,3 +6,4 @@ export * from "./push_tokens";
 export * from "./usuarios";
 export * from "./grupo_usuarios";
 export * from "./assinaturas";
+export * from "./webhook_eventos";

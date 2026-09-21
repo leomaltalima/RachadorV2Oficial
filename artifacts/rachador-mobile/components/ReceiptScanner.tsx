@@ -12,10 +12,10 @@ import {
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
-import { useAuth } from '@clerk/expo';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors } from '@/hooks/useColors';
 import type { Participante } from '@workspace/api-client-react';
+import { useAuth } from '@clerk/expo';
 
 export interface ReceiptItem {
   nome: string;
@@ -66,7 +66,13 @@ export function ReceiptScanner({ participantes, onApply, onClose }: ReceiptScann
           body: JSON.stringify({ image: `data:image/jpeg;base64,${base64}` }),
         }
       );
-      if (!res.ok) throw new Error('Erro ao processar a nota');
+      if (!res.ok) {
+        if (res.status === 403) {
+          throw new Error('A leitura de notas fiscais exige o plano Rachador PRO.');
+        }
+        const body = await res.json().catch(() => ({})) as { code?: string; message?: string };
+        throw new Error(body.message || 'Erro ao processar a nota');
+      }
       const data: ReceiptData = await res.json();
       setReceipt(data);
       setTaxaPercent(data.taxaServico != null ? data.taxaServico.toString() : '');

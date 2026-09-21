@@ -23,3 +23,12 @@ description: How Clerk Auth is wired into the Rachador project — keys, proxy, 
 - Appearance uses shadcn theme with terra-cotta primary (`hsl(12,85%,55%)`).
 
 **Why:** Users wanted email+password login with a "my groups" home screen. Clerk was chosen as the default auth provider (Replit-managed, no external account needed).
+
+## Diretório de usuários
+
+Mantenha o diretório de contas somente na tabela `usuarios` do banco. Não crie botão, página ou área administrativa no web ou mobile sem uma nova solicitação explícita.
+
+**Why:** O usuário confirmou que quer consultar as pessoas pela aba do banco de dados, não dentro dos aplicativos.
+
+**How to apply:** Sincronize contas autenticadas com a tabela local e deixe a interface dos aplicativos sem navegação de usuários.
+

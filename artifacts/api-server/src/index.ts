@@ -1,6 +1,5 @@
 import app from "./app";
 import { logger } from "./lib/logger";
-import { initializeStripe } from "./stripeClient";
 
 const rawPort = process.env["PORT"];
 
@@ -17,12 +16,6 @@ if (Number.isNaN(port) || port <= 0) {
 }
 
 async function start() {
-  try {
-    await initializeStripe();
-  } catch (error) {
-    logger.warn({ err: error }, "Stripe não foi inicializado; o restante da API continuará disponível");
-  }
-
   app.listen(port, (err) => {
     if (err) {
       logger.error({ err }, "Error listening on port");

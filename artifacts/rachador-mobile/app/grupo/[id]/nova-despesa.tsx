@@ -16,12 +16,14 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useQueryClient } from '@tanstack/react-query';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useAuth } from '@clerk/expo';
 import { useColors } from '@/hooks/useColors';
 import { useSession } from '@/context/SessionContext';
 import {
   useGetGrupo,
   useCreateDespesa,
   useParseVoiceExpenses,
+  useGetBillingMe,
   getListDespesasQueryKey,
   getGetSaldoQueryKey,
 } from '@workspace/api-client-react';
@@ -50,9 +52,12 @@ export default function NovaDespesaScreen() {
 
   const { data: grupo } = useGetGrupo(grupoId);
   const createDespesa = useCreateDespesa();
+  const { data: billing } = useGetBillingMe();
 
   const participantes = grupo?.participantes ?? [];
   const currentParticipanteId = getSession(grupoId);
+  const isPaid = billing?.plan === 'PRO' || billing?.plan === 'MASTER';
+  const isMaster = billing?.plan === 'MASTER';
 
   const [categoria, setCategoria] = useState<Category>('Outros');
   const [descricao, setDescricao] = useState('');
@@ -81,7 +86,7 @@ export default function NovaDespesaScreen() {
       const res = await parseVoice.mutateAsync({ grupoId, data: { audioBase64: base64, mimeType } });
       setVoiceData(res);
       setViewMode('voice_review');
-    } catch(e) {
+    } catch(e: any) {
       Alert.alert('Erro', 'Não foi possível interpretar o áudio.');
       setViewMode('manual');
     } finally {
@@ -331,10 +336,21 @@ export default function NovaDespesaScreen() {
             opacity: pressed ? 0.75 : 1,
           },
         ]}
-        onPress={() => setViewMode('voice_recording')}
+        onPress={() => {
+          if (!isMaster) {
+            router.push('/planos');
+            return;
+          }
+          setViewMode('voice_recording');
+        }}
       >
         <Ionicons name="mic-outline" size={20} color={colors.primary} />
         <Text style={[styles.voiceButtonText, { color: colors.primary }]}>Adicionar por voz</Text>
+        {!isMaster && (
+          <View style={[styles.proBadge, { backgroundColor: colors.primary }]}>
+            <Text style={[styles.proBadgeText, { color: colors.primaryForeground }]}>PRO</Text>
+          </View>
+        )}
       </Pressable>
       
       {/* Category */}
@@ -656,12 +672,23 @@ export default function NovaDespesaScreen() {
                   opacity: pressed ? 0.75 : 1,
                 },
               ]}
-              onPress={() => setShowScanner(true)}
+              onPress={() => {
+                if (!isPaid) {
+                  router.push('/planos');
+                  return;
+                }
+                setShowScanner(true);
+              }}
             >
               <Ionicons name="receipt-outline" size={18} color={colors.primary} />
               <Text style={[styles.scanButtonText, { color: colors.primary }]}>
                 Escanear nota fiscal
               </Text>
+              {!isPaid && (
+                <View style={[styles.proBadge, { backgroundColor: colors.primary }]}>
+                  <Text style={[styles.proBadgeText, { color: colors.primaryForeground }]}>PRO</Text>
+                </View>
+              )}
             </Pressable>
 
             {participantes.map((p) => (
@@ -743,6 +770,17 @@ const styles = StyleSheet.create({
   voiceButtonText: {
     fontFamily: 'PlusJakartaSans_700Bold',
     fontSize: 15,
+  },
+  proBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    marginLeft: 6,
+  },
+  proBadgeText: {
+    fontFamily: 'PlusJakartaSans_800ExtraBold',
+    fontSize: 9,
+    letterSpacing: 0.5,
   },
   section: {
     gap: 10,

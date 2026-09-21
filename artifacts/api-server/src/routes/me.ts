@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { getAuth } from "@clerk/express";
 import { eq } from "drizzle-orm";
 import { db, participantesTable, gruposTable } from "@workspace/db";
+import { syncAuthenticatedUser } from "../userDirectory";
 
 const router: IRouter = Router();
 
@@ -12,6 +13,8 @@ router.get("/me/grupos", async (req, res): Promise<void> => {
     res.status(401).json({ error: "Não autorizado" });
     return;
   }
+
+  await syncAuthenticatedUser(userId);
 
   const meus = await db
     .select()

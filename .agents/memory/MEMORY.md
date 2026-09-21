@@ -2,3 +2,6 @@
 - [Rachador mobile architecture](rachador-mobile.md) — Expo app at artifacts/rachador-mobile; uses same API server; session stored in AsyncStorage; key patterns documented
 - [Normalização de usuários e grupos](user-group-normalization.md) — preservar participantes nos fluxos atuais; usuarios/grupo_usuarios formam a relação N:N complementar.
 - [Gastos por voz](voice-expenses.md) — áudio é efêmero; IA produz rascunhos, backend resolve nomes e calcula; só a confirmação persiste despesas.
+- [Importação após handoff](project-import-handoff.md) — após mover uma conversa para um projeto persistente, os arquivos importados podem ficar preservados em `.local/conversation-workspace/files`.
+- [Permissões Free e Pro](plan-permissions.md) — voz e leitura de notas são sempre Pro; autorização no backend deve ocorrer antes de qualquer chamada de IA.
+- [Contrato AbacatePay](abacatepay-contract.md) — assinatura v2 usa confirmação por webhook; HMAC é Base64 e cancelamento do provedor é imediato.

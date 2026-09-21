@@ -66,6 +66,7 @@ function RootLayoutNav() {
       {/* The tab layout inside grupo/[id]/(tabs) controls its own header via Stack.Screen */}
       <Stack.Screen name="grupo/[id]/(tabs)" options={{ headerShown: true }} />
       <Stack.Screen name="grupo/[id]/nova-despesa" options={{ title: 'Nova Despesa' }} />
+      <Stack.Screen name="planos" options={{ title: 'Planos' }} />
     </Stack>
   );
 }

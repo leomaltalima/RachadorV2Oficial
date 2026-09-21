@@ -70,6 +70,19 @@ const state = vi.hoisted(() => ({
   sttCalls: 0,
   modelCalls: 0,
   lastAudio: null as Buffer | null,
+  users: [{
+    id: 1,
+    clerkUserId: "clerk-user-1",
+    nome: "Eu",
+    email: "eu@example.com",
+  }],
+  subscriptions: [{
+    id: 1,
+    usuarioId: 1,
+    status: "ACTIVE",
+    plano: "MASTER",
+    cicloCobranca: "one_time",
+  }],
 }));
 
 const gruposTable = vi.hoisted(() => ({
@@ -98,6 +111,15 @@ const pushTokensTable = vi.hoisted(() => ({
   id: { table: "push_tokens", column: "id" },
   participanteId: { table: "push_tokens", column: "participanteId" },
 }));
+const usuariosTable = vi.hoisted(() => ({
+  id: { table: "usuarios", column: "id" },
+  clerkUserId: { table: "usuarios", column: "clerkUserId" },
+}));
+const assinaturasTable = vi.hoisted(() => ({
+  usuarioId: { table: "assinaturas", column: "usuarioId" },
+  status: { table: "assinaturas", column: "status" },
+  plano: { table: "assinaturas", column: "plano" },
+}));
 
 function rowsFor(table: unknown) {
   if (table === gruposTable) return state.groups;
@@ -106,6 +128,8 @@ function rowsFor(table: unknown) {
   if (table === divisoesTable) return state.divisions;
   if (table === pagamentosTable) return [];
   if (table === pushTokensTable) return [];
+  if (table === usuariosTable) return state.users;
+  if (table === assinaturasTable) return state.subscriptions;
   return [];
 }
 
@@ -144,6 +168,12 @@ const db = vi.hoisted(() => ({
           };
           state.expenses.push(expense);
           return [expense];
+        },
+      }),
+      onConflictDoUpdate: () => ({
+        returning: async () => {
+          const value = values as Record<string, unknown>;
+          return [{ ...value, id: state.users[0]?.id ?? 1 }];
         },
       }),
       returning: async () => {
@@ -210,6 +240,25 @@ vi.mock("drizzle-orm", () => ({
 vi.mock("@clerk/express", () => ({
   clerkMiddleware: () => (_req: unknown, _res: unknown, next: () => void) => next(),
   getAuth: () => ({ userId: state.authUserId }),
+  clerkClient: {
+    users: {
+      getUser: vi.fn(async () => ({
+        id: "clerk-user-1",
+        fullName: "Eu",
+        primaryEmailAddress: {
+          emailAddress: "eu@example.com",
+          verification: { status: "verified" },
+        },
+        externalAccounts: [],
+        hasImage: false,
+        imageUrl: null,
+        passwordEnabled: true,
+        banned: false,
+        locked: false,
+        lastSignInAt: null,
+      })),
+    },
+  },
 }));
 
 vi.mock("@clerk/shared/keys", () => ({
@@ -224,6 +273,8 @@ vi.mock("@workspace/db", () => ({
   divisoesTable,
   pagamentosTable,
   pushTokensTable,
+  usuariosTable,
+  assinaturasTable,
 }));
 
 vi.mock("@workspace/integrations-openai-ai-server", () => ({
@@ -299,10 +350,30 @@ beforeEach(() => {
   state.sttCalls = 0;
   state.modelCalls = 0;
   state.lastAudio = null;
+  state.subscriptions[0].status = "ACTIVE";
+  state.subscriptions[0].plano = "MASTER";
 });
 
 describe("POST /api/grupos/:grupoId/voice-expenses/parse", () => {
-  it("usa uma gravação WAV real e interpreta uma despesa narrada em português", async () => {
+  it("bloqueia Free antes de transcrever ou chamar a IA", async () => {
+    state.subscriptions[0].status = "CANCELLED";
+    const response = await parseVoice([modelExpense()]);
+    expect(response.status).toBe(403);
+    expect(response.body.error).toBe("PLAN_REQUIRED");
+    expect(state.sttCalls).toBe(0);
+    expect(state.modelCalls).toBe(0);
+  });
+
+  it("bloqueia o plano PRO antes de transcrever ou chamar a IA", async () => {
+    state.subscriptions[0].plano = "PRO";
+    const response = await parseVoice([modelExpense()]);
+    expect(response.status).toBe(403);
+    expect(response.body.error).toBe("PLAN_REQUIRED");
+    expect(state.sttCalls).toBe(0);
+    expect(state.modelCalls).toBe(0);
+  });
+
+  it("usa uma gravação WAV real e interpreta uma despesa narrada em português sem assinatura", async () => {
     const response = await parseVoice([modelExpense()]);
 
     expect(response.status).toBe(200);

@@ -1,143 +1,229 @@
 import { Router } from "express";
-import type { Request, Response } from "express";
+import crypto from "node:crypto";
+import { and, desc, eq } from "drizzle-orm";
 import { getAuth } from "@clerk/express";
-import { eq } from "drizzle-orm";
 import { z } from "zod/v4";
-import { assinaturasTable, db } from "@workspace/db";
 import {
-  BILLING_PLANS,
-  getBillingRow,
-  isProSubscription,
-  toBillingSummary,
-  updateCancellation,
-} from "../billing";
-import { getUncachableStripeClient } from "../stripeClient";
+  assinaturasTable,
+  db,
+  usuariosTable,
+} from "@workspace/db";
+import {
+  cancelSubscription,
+  createPixCharge,
+  simulatePixCharge,
+  type BillingPlan,
+} from "../lib/abacatepay";
+import { syncAuthenticatedUser } from "../userDirectory";
 
 const router = Router();
-const checkoutSchema = z.object({ interval: z.enum(["monthly", "yearly"]) });
+const checkoutSchema = z.object({ plan: z.enum(["PRO", "MASTER"]) });
+const PLAN_PRICES: Record<BillingPlan, number> = { PRO: 999, MASTER: 1599 };
+const PLAN_NAMES: Record<BillingPlan, string> = { PRO: "Rachador PRO", MASTER: "Rachador Master" };
 
-function requireUser(req: Request, res: Response) {
+router.get("/billing/me", async (req, res) => {
   const { userId } = getAuth(req);
   if (!userId) {
-    res.status(401).json({ error: "Faça login para gerenciar sua assinatura." });
-    return null;
+    res.status(401).json({ error: "Faça login para consultar sua assinatura." });
+    return;
   }
-  return userId;
-}
+  const user = await syncAuthenticatedUser(userId);
+  const subscriptions = await db
+    .select()
+    .from(assinaturasTable)
+    .where(eq(assinaturasTable.usuarioId, user.id))
+    .orderBy(desc(assinaturasTable.atualizadaEm));
+  const subscription = subscriptions[0];
+  const pendingSubscription = subscriptions.find((item) => item.status === "PENDING");
 
-function requestOrigin(req: any) {
-  const forwardedProto = String(req.headers["x-forwarded-proto"] || "https").split(",")[0];
-  const host = req.headers.host;
-  return host ? `${forwardedProto}://${host}` : process.env.PUBLIC_APP_URL || "http://localhost";
-}
-
-router.get("/billing/plans", (_req, res) => {
-  const monthly = BILLING_PLANS.pro.monthlyPriceCents;
-  const yearly = BILLING_PLANS.pro.yearlyPriceCents;
+  const active = subscription?.status === "ACTIVE";
+  const currentPlan = active && subscription?.plano === "MASTER"
+    ? "MASTER"
+    : active
+      ? "PRO"
+      : "FREE";
   res.json({
-    free: BILLING_PLANS.free,
-    pro: BILLING_PLANS.pro,
-    savingsCents: monthly * 12 - yearly,
-    savingsPercent: Math.round(((monthly * 12 - yearly) / (monthly * 12)) * 100),
+    plan: currentPlan,
+    pendingPlan: pendingSubscription?.plano === "MASTER"
+      ? "MASTER"
+      : pendingSubscription?.plano === "PRO"
+        ? "PRO"
+        : null,
+    status: subscription?.status ?? "FREE",
+    billingCycle: subscription?.cicloCobranca ?? null,
+    amount: active && (subscription?.plano === "MASTER" || subscription?.plano === "PRO")
+      ? PLAN_PRICES[subscription.plano] / 100
+      : null,
+    startedAt: subscription?.iniciadaEm ?? null,
+    nextBillingAt: subscription?.proximaCobrancaEm ?? null,
+    canceledAt: subscription?.canceladaEm ?? null,
+    checkoutId: subscription?.abacatePayCheckoutId ?? null,
+    paymentMethod: subscription?.abacatePayPixCode ? "PIX" : null,
+    pixCode: subscription?.abacatePayPixCode ?? null,
+    pixQrCode: subscription?.abacatePayPixQrCode ?? null,
+    pixExpiresAt: subscription?.abacatePayPixExpiresAt ?? null,
   });
 });
 
-router.get("/billing/me", async (req, res): Promise<void> => {
-  const userId = requireUser(req, res);
-  if (!userId) return;
-  const row = await getBillingRow(userId);
-  res.json(toBillingSummary(row));
-});
-
-router.post("/billing/checkout", async (req, res): Promise<void> => {
-  const userId = requireUser(req, res);
-  if (!userId) return;
+router.post("/billing/checkout", async (req, res) => {
+  const { userId } = getAuth(req);
+  if (!userId) {
+    res.status(401).json({ error: "Faça login para escolher um plano." });
+    return;
+  }
   const parsed = checkoutSchema.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: "Escolha um plano mensal ou anual." });
+    res.status(400).json({ error: "Escolha um plano válido: PRO ou MASTER." });
     return;
   }
 
-  const row = await getBillingRow(userId);
-  if (isProSubscription(row)) {
-    res.status(409).json({ error: "Você já possui o Rachador Pro." });
-    return;
-  }
-  const priceId = parsed.data.interval === "monthly" ? process.env.STRIPE_PRICE_MONTHLY_ID : process.env.STRIPE_PRICE_YEARLY_ID;
-  if (!priceId) {
-    res.status(503).json({ error: "Os preços do Stripe ainda não foram configurados." });
-    return;
-  }
+  try {
+    const user = await syncAuthenticatedUser(userId);
+    if (!user.email) {
+      res.status(422).json({ error: "Cadastre um e-mail na sua conta antes de escolher um plano." });
+      return;
+    }
 
-  const stripe = await getUncachableStripeClient();
-  let customerId = row.stripeCustomerId;
-  if (!customerId) {
-    const customer = await stripe.customers.create({ metadata: { clerkUserId: userId } });
-    customerId = customer.id;
-    // The webhook is the source of subscription status; this only stores the relationship.
-    await db
-      .update(assinaturasTable)
-      .set({ stripeCustomerId: customerId, atualizadoEm: new Date() })
-      .where(eq(assinaturasTable.clerkUserId, userId));
-  }
+    const subscriptions = await db
+      .select()
+      .from(assinaturasTable)
+      .where(eq(assinaturasTable.usuarioId, user.id))
+      .orderBy(desc(assinaturasTable.atualizadaEm));
+    const activeSubscription = subscriptions.find((item) => item.status === "ACTIVE");
+    const plan = parsed.data.plan as BillingPlan;
+    if (activeSubscription) {
+      res.status(409).json({ error: "Você já possui um plano pago ativo." });
+      return;
+    }
+    const pendingSubscription = subscriptions.find(
+      (item) => item.status === "PENDING" && item.plano === plan,
+    );
+    if (pendingSubscription?.abacatePayCheckoutId && pendingSubscription.abacatePayPixCode) {
+      res.status(200).json({
+        checkoutId: pendingSubscription.abacatePayCheckoutId,
+        checkoutUrl: null,
+        paymentMethod: "PIX",
+        plan,
+        pixCode: pendingSubscription.abacatePayPixCode,
+        pixQrCode: pendingSubscription.abacatePayPixQrCode,
+        pixExpiresAt: pendingSubscription.abacatePayPixExpiresAt,
+        devMode: true,
+      });
+      return;
+    }
 
-  const origin = requestOrigin(req);
-  const session = await stripe.checkout.sessions.create({
-    customer: customerId,
-    mode: "subscription",
-    line_items: [{ price: priceId, quantity: 1 }],
-    success_url: `${origin}/?billing=success`,
-    cancel_url: `${origin}/?billing=cancelled`,
-    metadata: { clerkUserId: userId, plan: "pro", interval: parsed.data.interval },
-    subscription_data: { metadata: { clerkUserId: userId, plan: "pro", interval: parsed.data.interval } },
-    allow_promotion_codes: true,
-  });
-  console.info("[billing_event]", { event: "checkout_started", clerkUserId: userId, interval: parsed.data.interval });
-  res.json({ url: session.url });
+    const externalId = `rachador-user-${user.id}-${crypto.randomUUID()}`;
+    const metadata = {
+      userId: String(user.id),
+      clerkUserId: user.clerkUserId ?? userId,
+      plan,
+    };
+    const pix = await createPixCharge({
+      amount: PLAN_PRICES[plan],
+      description: PLAN_NAMES[plan],
+      expiresIn: 1800,
+      externalId,
+      metadata,
+    });
+
+    await db.insert(assinaturasTable).values({
+      usuarioId: user.id,
+      plano: plan,
+      status: "PENDING",
+      cicloCobranca: "one_time",
+      abacatePayCheckoutId: pix.id,
+      abacatePayPixCode: pix.brCode,
+      abacatePayPixQrCode: pix.brCodeBase64,
+      abacatePayPixExpiresAt: pix.expiresAt ? new Date(pix.expiresAt) : null,
+      abacatePayProductId: plan.toLowerCase(),
+      externalId,
+      atualizadaEm: new Date(),
+    });
+
+    res.status(201).json({
+      checkoutUrl: null,
+      checkoutId: pix.id,
+      plan,
+      paymentMethod: "PIX",
+      pixCode: pix.brCode,
+      pixQrCode: pix.brCodeBase64,
+      pixExpiresAt: pix.expiresAt ?? null,
+      devMode: pix.devMode ?? true,
+    });
+  } catch (error) {
+    req.log.error({ err: error }, "Falha ao criar checkout AbacatePay");
+    const providerMessage = error instanceof Error ? error.message : "";
+    if (/not available for this store/i.test(providerMessage)) {
+      res.status(503).json({
+        error: "O PIX ainda não está habilitado nesta loja da AbacatePay. Ative o PIX no ambiente de testes e tente novamente.",
+      });
+      return;
+    }
+    res.status(502).json({ error: "Não foi possível iniciar o checkout. Tente novamente." });
+  }
 });
 
-router.post("/billing/portal", async (req, res): Promise<void> => {
-  const userId = requireUser(req, res);
-  if (!userId) return;
-  const row = await getBillingRow(userId);
-  if (!row.stripeCustomerId) {
-    res.status(409).json({ error: "Nenhuma assinatura Stripe encontrada." });
+router.post("/billing/pix/simulate", async (req, res) => {
+  const { userId } = getAuth(req);
+  if (!userId) {
+    res.status(401).json({ error: "Faça login para simular o pagamento PIX." });
     return;
   }
-  const stripe = await getUncachableStripeClient();
-  const session = await stripe.billingPortal.sessions.create({
-    customer: row.stripeCustomerId,
-    return_url: `${requestOrigin(req)}/`,
-  });
-  res.json({ url: session.url });
+  const parsed = z.object({ checkoutId: z.string().min(1) }).safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Identificador de cobrança PIX inválido." });
+    return;
+  }
+
+  try {
+    const user = await syncAuthenticatedUser(userId);
+    const [pendingSubscription] = await db
+      .select()
+      .from(assinaturasTable)
+      .where(and(
+        eq(assinaturasTable.usuarioId, user.id),
+        eq(assinaturasTable.abacatePayCheckoutId, parsed.data.checkoutId),
+        eq(assinaturasTable.status, "PENDING"),
+      ))
+      .limit(1);
+    if (!pendingSubscription) {
+      res.status(404).json({ error: "Cobrança PIX pendente não encontrada." });
+      return;
+    }
+
+    const pix = await simulatePixCharge(parsed.data.checkoutId);
+    res.json({ checkoutId: pix.id, status: pix.status });
+  } catch (error) {
+    req.log.error({ err: error }, "Falha ao simular pagamento PIX AbacatePay");
+    res.status(502).json({ error: "Não foi possível simular o pagamento PIX." });
+  }
 });
 
-router.post("/billing/cancel", async (req, res): Promise<void> => {
-  const userId = requireUser(req, res);
-  if (!userId) return;
-  const row = await getBillingRow(userId);
-  if (!row.stripeSubscriptionId || !isProSubscription(row)) {
-    res.status(409).json({ error: "Nenhuma assinatura ativa para cancelar." });
+router.post("/billing/cancel", async (req, res) => {
+  const { userId } = getAuth(req);
+  if (!userId) {
+    res.status(401).json({ error: "Faça login para cancelar sua assinatura." });
     return;
   }
-  const stripe = await getUncachableStripeClient();
-  const subscription = await stripe.subscriptions.update(row.stripeSubscriptionId, { cancel_at_period_end: true });
-  await updateCancellation(userId, subscription.cancel_at_period_end);
-  res.json(toBillingSummary(await getBillingRow(userId)));
-});
+  try {
+    const user = await syncAuthenticatedUser(userId);
+    const subscriptions = await db
+      .select()
+      .from(assinaturasTable)
+      .where(and(eq(assinaturasTable.usuarioId, user.id), eq(assinaturasTable.status, "ACTIVE")))
+      .orderBy(desc(assinaturasTable.atualizadaEm))
+    const subscription = subscriptions[0];
+    if (!subscription?.abacatePaySubscriptionId) {
+      res.status(404).json({ error: "Nenhuma assinatura ativa encontrada." });
+      return;
+    }
 
-router.post("/billing/reactivate", async (req, res): Promise<void> => {
-  const userId = requireUser(req, res);
-  if (!userId) return;
-  const row = await getBillingRow(userId);
-  if (!row.stripeSubscriptionId || !isProSubscription(row)) {
-    res.status(409).json({ error: "Nenhuma assinatura ativa para reativar." });
-    return;
+    await cancelSubscription(subscription.abacatePaySubscriptionId);
+    res.json({ status: "cancellation_requested" });
+  } catch (error) {
+    req.log.error({ err: error }, "Falha ao cancelar assinatura AbacatePay");
+    res.status(502).json({ error: "Não foi possível solicitar o cancelamento. Tente novamente." });
   }
-  const stripe = await getUncachableStripeClient();
-  const subscription = await stripe.subscriptions.update(row.stripeSubscriptionId, { cancel_at_period_end: false });
-  await updateCancellation(userId, subscription.cancel_at_period_end);
-  res.json(toBillingSummary(await getBillingRow(userId)));
 });
 
 export default router;

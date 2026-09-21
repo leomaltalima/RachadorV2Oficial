@@ -26,10 +26,9 @@ interface ReceiptScannerProps {
   participantes: Participante[]
   onApply: (splits: Record<number, number>, total: number, descricao: string) => void
   onClose: () => void
-  onPaywall?: () => void
 }
 
-export function ReceiptScanner({ participantes, onApply, onClose, onPaywall }: ReceiptScannerProps) {
+export function ReceiptScanner({ participantes, onApply, onClose }: ReceiptScannerProps) {
   const [step, setStep] = useState<"capture" | "assigning">("capture")
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -58,10 +57,6 @@ export function ReceiptScanner({ participantes, onApply, onClose, onPaywall }: R
       })
       if (!res.ok) {
         const body = await res.json().catch(() => ({}))
-        if (res.status === 402 || body.code === "premium_required") {
-          onPaywall?.()
-          return
-        }
         throw new Error(body.error || "Erro ao processar a nota")
       }
       const data: ReceiptData = await res.json()

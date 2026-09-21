@@ -1,0 +1,623 @@
+Quero implementar do zero a integração de pagamentos do **Rachador** usando **AbacatePay**.
+
+Atualmente não existe mais nenhuma integração com Stripe ou outro gateway. Portanto, não quero migração nem remoção de código antigo. Quero apenas adicionar a AbacatePay de forma limpa e integrada à arquitetura atual do projeto.
+
+Antes de codificar, analise o projeto atual e identifique:
+
+* framework usado
+* backend
+* banco de dados
+* sistema de autenticação
+* tabela/modelo de usuários
+* onde ficam as funcionalidades de IA por voz
+* onde fica a funcionalidade de foto da nota fiscal
+* estrutura atual de planos/permissões, se existir
+
+Depois implemente a solução.
+
+# PLANOS
+
+O Rachador terá dois planos:
+
+## Rachador Free
+
+Usuários Free podem:
+
+* criar grupos
+* participar de grupos
+* adicionar participantes
+* adicionar despesas manualmente
+* editar despesas manuais
+* realizar divisão manual
+* visualizar saldos
+* visualizar quem deve para quem
+* utilizar as funcionalidades gratuitas já existentes
+
+Usuários Free NÃO podem utilizar:
+
+* divisão automática através de IA por voz
+* divisão automática através de foto da nota fiscal
+
+## Rachador Pro
+
+Preço:
+
+* Mensal: R$ 9,90
+* Anual: R$ 79,90
+
+O usuário Pro tem acesso a tudo do plano Free e também:
+
+### IA por voz
+
+Permitir gravar ou enviar um áudio descrevendo os gastos.
+
+A IA deve interpretar os dados e gerar a divisão automaticamente.
+
+### Foto da nota fiscal
+
+Permitir tirar ou enviar foto de uma nota fiscal para que o sistema interprete os valores e auxilie na divisão automática.
+
+Essas duas funcionalidades devem ser tratadas internamente como funcionalidades exclusivas do plano Pro.
+
+# ABACATEPAY
+
+Utilize a integração oficial e atual da **AbacatePay**.
+
+Não invente endpoints, parâmetros, status ou eventos.
+
+Consulte a documentação oficial atual durante a implementação.
+
+Toda comunicação com a AbacatePay deve ocorrer pelo backend.
+
+Nunca exponha a API Key no frontend.
+
+Crie variáveis de ambiente adequadas, por exemplo:
+
+`ABACATEPAY_API_KEY`
+
+`ABACATEPAY_WEBHOOK_SECRET`
+
+e quaisquer outras necessárias.
+
+Ao final, informe exatamente quais Secrets preciso cadastrar no Replit.
+
+# PRODUTOS / PLANOS
+
+Crie ou configure os produtos necessários para:
+
+## Rachador Pro Mensal
+
+Valor:
+
+R$ 9,90
+
+Ciclo:
+
+mensal
+
+## Rachador Pro Anual
+
+Valor:
+
+R$ 79,90
+
+Ciclo:
+
+anual
+
+Se a AbacatePay trabalhar com IDs de produtos/planos, salve esses IDs em variáveis de ambiente ou configuração centralizada.
+
+Não deixe valores e IDs espalhados pelo código.
+
+# FLUXO DE ASSINATURA
+
+Na área de planos, o usuário deve conseguir escolher:
+
+**R$ 9,90/mês**
+
+ou
+
+**R$ 79,90/ano**
+
+Ao clicar em assinar:
+
+1. confirmar usuário autenticado
+2. criar ou localizar o cliente correspondente na AbacatePay
+3. criar checkout/assinatura
+4. redirecionar o usuário para o fluxo de pagamento da AbacatePay
+5. aguardar confirmação real do pagamento
+6. receber webhook
+7. atualizar o banco
+8. liberar o Rachador Pro
+
+IMPORTANTE:
+
+Não considere o usuário Pro apenas porque ele retornou da página de pagamento.
+
+O acesso deve ser liberado somente após confirmação confiável do pagamento/assinatura.
+
+# ASSOCIAÇÃO COM O USUÁRIO
+
+Quero uma associação clara entre:
+
+`Usuário do Rachador`
+
+↕
+
+`Cliente AbacatePay`
+
+↕
+
+`Assinatura`
+
+Salve no banco os identificadores necessários.
+
+Sempre que possível, utilize identificadores internos como:
+
+`userId`
+
+`externalId`
+
+ou metadata equivalente.
+
+Não utilize apenas o e-mail como forma de identificar a assinatura.
+
+# BANCO DE DADOS
+
+Analise o schema atual e faça as migrations necessárias.
+
+Não crie campos duplicados.
+
+Preciso conseguir armazenar pelo menos:
+
+* userId
+* plan
+* subscriptionStatus
+* billingCycle
+* abacatePayCustomerId
+* abacatePaySubscriptionId
+* abacatePayProductId ou equivalente
+* subscriptionStartedAt
+* subscriptionUpdatedAt
+* subscriptionCanceledAt
+* próxima renovação/fim do período, se a API disponibilizar
+* createdAt
+* updatedAt
+
+Se fizer mais sentido, crie uma tabela específica de assinaturas.
+
+Exemplo:
+
+`subscriptions`
+
+Não salve informações sensíveis de pagamento, como número de cartão.
+
+# WEBHOOK
+
+Implemente um endpoint específico para receber webhooks da AbacatePay.
+
+Esse webhook deve:
+
+* validar autenticidade
+* validar secret/assinatura conforme documentação oficial
+* rejeitar eventos inválidos
+* identificar o usuário correto
+* atualizar a assinatura
+* atualizar as permissões
+* ser idempotente
+
+Não quero que um mesmo webhook processado duas vezes cause duplicidade.
+
+Salve o identificador do evento ou utilize outra estratégia de idempotência.
+
+Trate corretamente os eventos relacionados a:
+
+* assinatura criada/confirmada
+* pagamento confirmado
+* renovação
+* cancelamento
+* falha/expiração, caso aplicável
+
+Utilize os nomes reais dos eventos definidos atualmente pela AbacatePay.
+
+# CONTROLE DE PERMISSÕES
+
+Essa parte é extremamente importante.
+
+Crie uma camada centralizada para controlar o que cada plano pode acessar.
+
+Algo conceitualmente semelhante a:
+
+```ts
+const PLAN_FEATURES = {
+  FREE: {
+    groups: true,
+    manualExpenses: true,
+    voiceAI: false,
+    receiptAI: false
+  },
+  PRO: {
+    groups: true,
+    manualExpenses: true,
+    voiceAI: true,
+    receiptAI: true
+  }
+}
+```
+
+Adapte ao projeto.
+
+Também crie uma função central, como:
+
+`hasProAccess(userId)`
+
+ou
+
+`requireProAccess()`
+
+Não quero verificações duplicadas espalhadas pelo código.
+
+# BACKEND
+
+Usuários Free NÃO podem conseguir utilizar recursos Pro nem chamando a API diretamente.
+
+Proteja todas as rotas relacionadas a:
+
+### IA por voz
+
+* upload de áudio
+* gravação
+* speech-to-text
+* transcrição
+* interpretação por IA
+* processamento de despesas por voz
+* criação automática da divisão
+
+### Foto da nota fiscal
+
+* upload da foto
+* OCR
+* análise de imagem
+* interpretação de nota
+* chamadas de IA
+* geração automática da divisão
+
+Antes de qualquer processamento:
+
+1. identificar usuário autenticado
+2. verificar assinatura
+3. verificar permissão Pro
+4. somente depois executar IA
+
+Se o usuário for Free:
+
+retornar algo equivalente a:
+
+```json
+{
+  "error": "PRO_REQUIRED",
+  "message": "Esta funcionalidade é exclusiva do Rachador Pro."
+}
+```
+
+com status:
+
+`403 Forbidden`
+
+# MUITO IMPORTANTE: CUSTO DE IA
+
+A verificação do plano deve acontecer ANTES de qualquer chamada externa paga.
+
+Exemplo correto:
+
+Usuário solicita divisão por voz
+
+↓
+
+verifica usuário
+
+↓
+
+verifica plano
+
+↓
+
+FREE
+
+↓
+
+403
+
+↓
+
+NÃO chama modelo de IA
+
+NÃO transcreve
+
+NÃO gera nenhum custo
+
+---
+
+PRO
+
+↓
+
+processa normalmente
+
+Faça o mesmo para a foto da nota fiscal.
+
+# FRONTEND
+
+Crie ou adapte uma área chamada:
+
+**Planos**
+
+ou
+
+**Rachador Pro**
+
+Mostrar:
+
+## Free
+
+Grátis
+
+Inclui:
+
+* grupos
+* participantes
+* despesas manuais
+* divisão manual
+* recursos básicos
+
+## Pro
+
+R$ 9,90/mês
+
+ou
+
+R$ 79,90/ano
+
+Inclui:
+
+* tudo do Free
+* IA por voz
+* leitura de nota fiscal
+* divisão automática por IA
+
+O plano anual pode mostrar:
+
+**Economize R$ 38,90 por ano**
+
+considerando:
+
+12 × R$ 9,90 = R$ 118,80
+
+R$ 118,80 - R$ 79,90 = R$ 38,90
+
+# FUNCIONALIDADES PRO NA INTERFACE
+
+As funcionalidades:
+
+**IA por voz**
+
+e
+
+**Foto da nota fiscal**
+
+devem apresentar uma identificação visual:
+
+`PRO`
+
+Para usuário Free:
+
+ao clicar:
+
+→ não executar a ferramenta
+
+→ abrir a tela de planos/paywall
+
+Para usuário Pro:
+
+→ abrir normalmente
+
+# PAYWALL
+
+Criar um paywall seguindo o design atual do Rachador.
+
+Texto sugerido:
+
+**Desbloqueie o Rachador Pro**
+
+Automatize suas divisões com inteligência artificial.
+
+Benefícios:
+
+* Divisão por voz
+* Leitura automática de notas fiscais
+* Menos lançamento manual
+* Divisões mais rápidas
+
+Planos:
+
+**R$ 9,90/mês**
+
+**R$ 79,90/ano**
+
+Botões:
+
+**Assinar mensal**
+
+**Assinar anual**
+
+# MINHA ASSINATURA
+
+Na área de perfil/configurações, crie:
+
+**Minha assinatura**
+
+Mostrar:
+
+* plano atual
+* Free ou Pro
+* mensal ou anual
+* status
+* valor
+* data de início
+* próxima renovação, se disponível
+
+Se a API da AbacatePay permitir:
+
+* botão para cancelar assinatura
+
+O cancelamento deve acontecer através da AbacatePay.
+
+Não quero apenas alterar o usuário para Free localmente.
+
+# SINCRONIZAÇÃO
+
+Quero que a AbacatePay seja a fonte de verdade para o status da assinatura.
+
+O banco local pode armazenar o status para desempenho, mas deve permanecer sincronizado através dos webhooks.
+
+Cenários:
+
+### Nova assinatura
+
+Pagamento confirmado
+
+→ Pro
+
+### Renovação confirmada
+
+→ permanece Pro
+
+### Cancelamento
+
+→ atualizar status corretamente conforme regras atuais da AbacatePay
+
+### Assinatura encerrada/expirada
+
+→ Free
+
+### Nova assinatura posteriormente
+
+→ Pro novamente
+
+# SEGURANÇA
+
+Implemente:
+
+* API Key somente no backend
+* usuário autenticado obrigatório
+* validação do webhook
+* proteção contra manipulação de plano
+* Price/Product ID definido no backend
+* nunca aceitar do frontend um valor arbitrário de preço
+* nunca aceitar do frontend algo como `plan = PRO`
+* validação de todos os parâmetros
+* idempotência de webhook
+
+O frontend pode enviar algo como:
+
+`monthly`
+
+ou
+
+`yearly`
+
+e o backend deve decidir qual produto/valor oficial utilizar.
+
+# TESTES
+
+Teste obrigatoriamente:
+
+## Free
+
+* criar grupo funciona
+* despesa manual funciona
+* IA por voz bloqueada
+* foto de nota bloqueada
+* tentativa direta de API recebe 403
+* nenhuma chamada externa de IA acontece
+
+## Assinatura mensal
+
+Free
+
+→ checkout
+
+→ pagamento
+
+→ webhook
+
+→ Pro
+
+→ recursos liberados
+
+## Assinatura anual
+
+Mesmo fluxo.
+
+## Pro
+
+* voz funciona
+* foto funciona
+* demais recursos continuam funcionando
+
+## Cancelamento
+
+* cancelamento enviado à AbacatePay
+* banco atualizado
+* acesso atualizado corretamente
+
+## Webhook duplicado
+
+Não gerar dados duplicados.
+
+## Webhook inválido
+
+Rejeitar.
+
+## Usuário não autenticado
+
+Não permitir criar assinatura nem usar recursos Pro.
+
+# NÃO QUEBRAR O QUE JÁ EXISTE
+
+Não recrie desnecessariamente:
+
+* autenticação
+* usuários
+* grupos
+* despesas
+* IA
+* banco inteiro
+
+Apenas integre a monetização à estrutura existente.
+
+Preserve todas as funcionalidades atuais.
+
+# AO FINAL
+
+Me entregue:
+
+1. quais arquivos foram criados
+2. quais arquivos foram modificados
+3. migrations realizadas
+4. endpoints adicionados
+5. como funciona o checkout
+6. como funciona o webhook
+7. como o usuário é identificado na AbacatePay
+8. como o sistema determina se alguém é Pro
+9. como as funcionalidades Pro estão protegidas
+10. como funciona o cancelamento
+11. como testar Free
+12. como testar Pro
+13. como testar o pagamento
+14. todas as variáveis de ambiente necessárias
+15. exatamente o que preciso configurar manualmente no painel da AbacatePay
+
+O objetivo final é:
+
+**integrar AbacatePay ao Rachador do zero e garantir que IA por voz e foto da nota fiscal sejam recursos exclusivos para usuários Rachador Pro com assinatura válida.**

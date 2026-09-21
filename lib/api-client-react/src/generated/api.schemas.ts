@@ -290,3 +290,136 @@ export interface VoiceExpenseParseResponse {
   avisos: string[];
 }
 
+export type BillingCheckoutInputPlan = typeof BillingCheckoutInputPlan[keyof typeof BillingCheckoutInputPlan];
+
+
+export const BillingCheckoutInputPlan = {
+  PRO: 'PRO',
+  MASTER: 'MASTER',
+} as const;
+
+export interface BillingCheckoutInput {
+  plan: BillingCheckoutInputPlan;
+}
+
+export interface BillingPixSimulationInput {
+  checkoutId: string;
+}
+
+export type BillingCheckoutResponsePlan = typeof BillingCheckoutResponsePlan[keyof typeof BillingCheckoutResponsePlan];
+
+
+export const BillingCheckoutResponsePlan = {
+  PRO: 'PRO',
+  MASTER: 'MASTER',
+} as const;
+
+export type BillingCheckoutResponsePaymentMethod = typeof BillingCheckoutResponsePaymentMethod[keyof typeof BillingCheckoutResponsePaymentMethod];
+
+
+export const BillingCheckoutResponsePaymentMethod = {
+  PIX: 'PIX',
+} as const;
+
+export interface BillingCheckoutResponse {
+  /** @nullable */
+  checkoutUrl?: string | null;
+  checkoutId: string;
+  plan: BillingCheckoutResponsePlan;
+  paymentMethod: BillingCheckoutResponsePaymentMethod;
+  pixCode: string;
+  pixQrCode: string;
+  /** @nullable */
+  pixExpiresAt: string | null;
+  devMode: boolean;
+}
+
+export interface BillingPixSimulationResponse {
+  checkoutId: string;
+  status: string;
+}
+
+export type BillingCancelResponseStatus = typeof BillingCancelResponseStatus[keyof typeof BillingCancelResponseStatus];
+
+
+export const BillingCancelResponseStatus = {
+  cancellation_requested: 'cancellation_requested',
+} as const;
+
+export interface BillingCancelResponse {
+  status: BillingCancelResponseStatus;
+}
+
+export type BillingMePlan = typeof BillingMePlan[keyof typeof BillingMePlan];
+
+
+export const BillingMePlan = {
+  FREE: 'FREE',
+  PRO: 'PRO',
+  MASTER: 'MASTER',
+} as const;
+
+/**
+ * @nullable
+ */
+export type BillingMePendingPlan = typeof BillingMePendingPlan[keyof typeof BillingMePendingPlan] | null;
+
+
+export const BillingMePendingPlan = {
+  PRO: 'PRO',
+  MASTER: 'MASTER',
+} as const;
+
+/**
+ * @nullable
+ */
+export type BillingMeBillingCycle = typeof BillingMeBillingCycle[keyof typeof BillingMeBillingCycle] | null;
+
+
+export const BillingMeBillingCycle = {
+  one_time: 'one_time',
+} as const;
+
+/**
+ * @nullable
+ */
+export type BillingMePaymentMethod = typeof BillingMePaymentMethod[keyof typeof BillingMePaymentMethod] | null;
+
+
+export const BillingMePaymentMethod = {
+  PIX: 'PIX',
+} as const;
+
+export interface BillingMe {
+  plan: BillingMePlan;
+  /** @nullable */
+  pendingPlan: BillingMePendingPlan;
+  status: string;
+  /** @nullable */
+  billingCycle: BillingMeBillingCycle;
+  /** @nullable */
+  amount: number | null;
+  /** @nullable */
+  startedAt: string | null;
+  /** @nullable */
+  nextBillingAt: string | null;
+  /** @nullable */
+  canceledAt: string | null;
+  /** @nullable */
+  checkoutId: string | null;
+  /** @nullable */
+  paymentMethod: BillingMePaymentMethod;
+  /** @nullable */
+  pixCode: string | null;
+  /** @nullable */
+  pixQrCode: string | null;
+  /** @nullable */
+  pixExpiresAt: string | null;
+}
+
+export interface AbacateWebhookPayload { [key: string]: unknown }
+
+export type ReceiveAbacatePayWebhookParams = {
+webhookSecret: string;
+};
+

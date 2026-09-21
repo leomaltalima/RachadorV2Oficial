@@ -5,7 +5,7 @@ import { z } from "zod/v4";
 import { db, gruposTable, participantesTable } from "@workspace/db";
 import { isUsingDirectOpenAI, openai } from "@workspace/integrations-openai-ai-server";
 import { ensureCompatibleFormat, speechToText } from "@workspace/integrations-openai-ai-server/audio";
-import { reserveAiUse } from "../billing";
+import { requireFeatureAccess } from "../lib/planPermissions";
 
 const router = Router();
 
@@ -193,6 +193,7 @@ router.post("/grupos/:grupoId/voice-expenses/parse", async (req, res): Promise<v
     res.status(401).json({ error: "Faça login para usar os gastos por voz." });
     return;
   }
+  if (!(await requireFeatureAccess(req, res, "voiceExpenses"))) return;
 
   const [group] = await db.select().from(gruposTable).where(eq(gruposTable.id, grupoId));
   if (!group) {
@@ -203,16 +204,6 @@ router.post("/grupos/:grupoId/voice-expenses/parse", async (req, res): Promise<v
   const currentParticipant = participants.find((participant) => participant.clerkUserId === userId);
   if (!currentParticipant && group.criadorClerkUserId !== userId) {
     res.status(403).json({ error: "Você não pertence a este grupo." });
-    return;
-  }
-
-  const usage = await reserveAiUse(userId, "voice");
-  if (!usage.allowed) {
-    res.status(402).json({
-      error: "Você atingiu o limite de 3 divisões automáticas gratuitas neste mês.",
-      code: "premium_required",
-      billing: usage.summary,
-    });
     return;
   }
 
