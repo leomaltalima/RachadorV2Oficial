@@ -1,3 +1,4 @@
+- [GitHub sync and Replit env](github-sync.md) — Keep `.replit` userenv values out of public commits; preserve the safe remote config unless the user approves migration.
 - [Clerk Auth integration](clerk-auth.md) — Replit-managed Clerk; clerkUserId on participantes links users to groups via /api/me/grupos.
 - [Rachador mobile architecture](rachador-mobile.md) — Expo app at artifacts/rachador-mobile; uses same API server; session stored in AsyncStorage; key patterns documented
 - [Normalização de usuários e grupos](user-group-normalization.md) — preservar participantes nos fluxos atuais; usuarios/grupo_usuarios formam a relação N:N complementar.
