@@ -161,7 +161,10 @@ export default function JoinGroup() {
                         </div>
                         <div>
                           <p className="font-bold text-foreground">{p.nome}</p>
-                          <p className="text-xs text-muted-foreground truncate max-w-[200px]">
+                          <p
+                            data-sensitive={p.chavePix ? true : undefined}
+                            className="text-xs text-muted-foreground truncate max-w-[200px]"
+                          >
                             {isMe ? "Sua conta — clique para entrar" : p.chavePix ? `Pix: ${p.chavePix}` : ""}
                           </p>
                         </div>

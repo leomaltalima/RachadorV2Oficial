@@ -5,3 +5,4 @@
 - [Importação após handoff](project-import-handoff.md) — após mover uma conversa para um projeto persistente, os arquivos importados podem ficar preservados em `.local/conversation-workspace/files`.
 - [Permissões Free e Pro](plan-permissions.md) — voz e leitura de notas são sempre Pro; autorização no backend deve ocorrer antes de qualquer chamada de IA.
 - [Contrato AbacatePay](abacatepay-contract.md) — assinatura v2 usa confirmação por webhook; HMAC é Base64 e cancelamento do provedor é imediato.
+- [PostHog e wizard](posthog.md) — self-driving é um fluxo interativo separado; analytics básico usa posthog-js e variáveis VITE_*.

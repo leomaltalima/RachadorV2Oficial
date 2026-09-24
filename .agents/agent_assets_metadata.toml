@@ -42,3 +42,45 @@ mtime_ms = 1786976796948
 storage_uri = "gcs://replit-rams-assets-kirk/rams/assets/repl:04c7e377-56af-4806-845c-2811c87b0109/081bf147-9428-4c81-8f43-4e455a1ad5c9/cf7fa4a9-1c38-47a5-9630-3f1ceb5ec697"
 storage_version_token = "1788262704566361"
 content_type = "image/png"
+
+[[outputs]]
+id = "Mg2d-zv_drWOW35nMlSWE"
+uri = "file://robots_rachador.txt"
+type = "text"
+title = "Baixar robots_rachador.txt"
+description = "Cópia exata do robots.txt do Rachador."
+logical_id = "eccc799a-4747-45f4-b067-5bc7cae55eec"
+content_hash = "sha256:4fe7755ecf6f3e590e459adff72dbd6b39931d056c757c5c4a643c244073fd98"
+size = 73
+mtime_ms = 1789994309162
+storage_uri = "gcs://replit-rams-assets-kirk/rams/assets/repl:968dd6f7-6992-4c9c-b457-dd61dc78431f/eccc799a-4747-45f4-b067-5bc7cae55eec/71abfcc6-b89d-4076-a058-309a4627f995"
+storage_version_token = "1789994449544446"
+content_type = "text/plain"
+
+[[outputs]]
+id = "srfdRtu1PXTwiAA2iERn6"
+uri = "file://sitemap_rachador.txt"
+type = "text"
+title = "Baixar sitemap_rachador.txt"
+description = "Cópia exata do sitemap.xml do Rachador, salva em formato .txt."
+logical_id = "a3a988a7-594e-4e97-a261-5bb6f8492349"
+content_hash = "sha256:1c1707eb13bf6f5cd67b3ce8f12f08d5db17f58afc8f99e173633385e2d1a99e"
+size = 236
+mtime_ms = 1789994309531
+storage_uri = "gcs://replit-rams-assets-kirk/rams/assets/repl:968dd6f7-6992-4c9c-b457-dd61dc78431f/a3a988a7-594e-4e97-a261-5bb6f8492349/61a4723d-2f20-4b50-bb25-7f22ab9b985a"
+storage_version_token = "1789994450294571"
+content_type = "text/plain"
+
+[[outputs]]
+id = "9WBlzYsohkfOa0WRItnXp"
+uri = "file://llms_rachador.txt"
+type = "text"
+title = "Baixar llms_rachador.txt"
+description = "Cópia exata do llms.txt do Rachador."
+logical_id = "17f71084-3d27-45bb-8d27-779b63ba5c1f"
+content_hash = "sha256:de6ef64a448b2a69424eb4d703c77432ed85f055ef8ca1f4cee39337c562b466"
+size = 772
+mtime_ms = 1789994309748
+storage_uri = "gcs://replit-rams-assets-kirk/rams/assets/repl:968dd6f7-6992-4c9c-b457-dd61dc78431f/17f71084-3d27-45bb-8d27-779b63ba5c1f/7bfe8bd8-2b0e-437d-9f29-5d1c8c88a0b0"
+storage_version_token = "1789994450962100"
+content_type = "text/plain"

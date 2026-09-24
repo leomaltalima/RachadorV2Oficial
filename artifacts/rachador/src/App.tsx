@@ -21,6 +21,7 @@ import GroupDashboard from '@/pages/group-dashboard';
 import AddExpense from '@/pages/add-expense';
 import Planos from '@/pages/planos';
 import Conta from '@/pages/conta';
+import { capturePageview } from '@/lib/posthog';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -151,9 +152,20 @@ function RoutedErrorBoundary({ children }: { children: ReactNode }) {
   return <ErrorBoundary resetKey={location}>{children}</ErrorBoundary>;
 }
 
+function PostHogPageviewTracker() {
+  const [location] = useLocation();
+
+  useEffect(() => {
+    capturePageview(location);
+  }, [location]);
+
+  return null;
+}
+
 function Router() {
   return (
     <RoutedErrorBoundary>
+      <PostHogPageviewTracker />
       <Switch>
         <Route path="/" component={Home} />
         <Route path="/sign-in/*?" component={SignInPage} />

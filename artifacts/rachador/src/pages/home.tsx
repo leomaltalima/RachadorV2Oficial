@@ -108,7 +108,7 @@ export default function Home() {
             alt="Logo do Rachador"
             className="w-20 h-20 object-contain mx-auto mb-4"
           />
-          <h1 className="text-3xl font-extrabold tracking-tight text-foreground">Rachador</h1>
+          <h1 className="text-3xl font-extrabold tracking-tight text-foreground">Divida contas sem complicação com o Rachador</h1>
           <p className="text-muted-foreground text-lg">Divida as contas, não as amizades.</p>
         </div>
 
@@ -129,7 +129,7 @@ export default function Home() {
                 <p className="truncate text-sm font-bold text-foreground">
                   {user?.firstName ?? user?.emailAddresses?.[0]?.emailAddress}
                 </p>
-                <p className="truncate text-xs text-muted-foreground">
+                <p className="ph-mask truncate text-xs text-muted-foreground">
                   {user?.emailAddresses?.[0]?.emailAddress}
                 </p>
               </div>

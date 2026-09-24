@@ -754,7 +754,7 @@ export default function GroupDashboard() {
                           </DialogTrigger>
                           <DialogContent className="max-w-sm">
                             <DialogHeader><DialogTitle>Comprovante</DialogTitle></DialogHeader>
-                            <img src={pag.comprovante} alt="Comprovante" className="w-full rounded-xl" />
+                            <img src={pag.comprovante} alt="Comprovante" className="ph-no-capture w-full rounded-xl" />
                           </DialogContent>
                         </Dialog>
                       )}
@@ -860,7 +860,7 @@ export default function GroupDashboard() {
                 <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleComprovanteChange} />
                 {payComprovante ? (
                   <div className="relative w-full rounded-xl overflow-hidden border border-border/60">
-                    <img src={payComprovante} alt="Comprovante" className="w-full max-h-48 object-contain bg-secondary/30" />
+                    <img src={payComprovante} alt="Comprovante" className="ph-no-capture w-full max-h-48 object-contain bg-secondary/30" />
                     <button
                       onClick={() => { setPayComprovante(null); if (fileInputRef.current) fileInputRef.current.value = "" }}
                       className="absolute top-2 right-2 w-7 h-7 rounded-full bg-background/80 border border-border flex items-center justify-center hover:bg-destructive hover:text-destructive-foreground transition-colors"

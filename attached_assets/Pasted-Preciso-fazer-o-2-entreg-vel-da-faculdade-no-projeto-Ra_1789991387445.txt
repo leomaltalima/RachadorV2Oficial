@@ -1,0 +1,90 @@
+Preciso fazer o 2º entregável da faculdade no projeto Rachador.
+
+O domínio público oficial é:
+
+https://rachador.replit.app/
+
+Preciso criar e publicar estes três arquivos na raiz pública do site:
+
+https://rachador.replit.app/robots.txt
+
+https://rachador.replit.app/sitemap.xml
+
+https://rachador.replit.app/llms.txt
+
+Antes de implementar, analise a estrutura atual do projeto e identifique quais rotas são públicas e quais exigem autenticação.
+
+1. robots.txt
+
+Crie o arquivo para permitir o rastreamento das páginas públicas e apontar para o sitemap.
+
+Use como base:
+
+User-agent: *
+Allow: /
+
+Sitemap: https://rachador.replit.app/sitemap.xml
+
+Não use robots.txt como proteção de dados privados.
+
+2. sitemap.xml
+
+Crie um sitemap XML válido com base nas rotas públicas reais do projeto.
+
+Use:
+
+https://rachador.replit.app
+
+como domínio base.
+
+Inclua apenas páginas públicas e relevantes.
+
+Não inclua:
+
+páginas privadas;
+dashboards autenticados;
+grupos específicos;
+URLs com IDs de usuários;
+endpoints de API.
+3. llms.txt
+
+Crie o arquivo com esta base:
+
+# Rachador
+
+> Divida contas e gastos em grupo de forma simples, com cálculos automáticos e recursos de inteligência artificial.
+
+Rachador é um aplicativo web para organizar despesas compartilhadas entre amigos, viagens, casas, eventos e outros grupos.
+
+Os usuários podem registrar gastos, informar quem participou de cada despesa e acompanhar automaticamente quanto cada pessoa deve pagar.
+
+O Rachador também utiliza inteligência artificial para facilitar o registro e a organização de despesas, incluindo recursos para interpretar gastos informados por voz.
+
+## Páginas
+
+Depois de ## Páginas, liste apenas páginas públicas que realmente existam no projeto.
+
+Use o formato:
+
+- [Nome da página](/rota): descrição curta da página
+
+Não invente rotas.
+
+Validação
+
+Depois de publicar, teste os três links no domínio público:
+
+https://rachador.replit.app/robots.txt
+
+https://rachador.replit.app/sitemap.xml
+
+https://rachador.replit.app/llms.txt
+
+Confirme que todos abrem sem login.
+
+Ao final, me informe:
+
+quais arquivos foram criados;
+quais rotas entraram no sitemap;
+quais páginas entraram no llms.txt;
+se os três links públicos funcionam corretamente.

@@ -1,0 +1,14 @@
+# Rachador
+
+> Divida contas e gastos em grupo de forma simples, com cálculos automáticos e recursos de inteligência artificial.
+
+Rachador é um aplicativo web para organizar despesas compartilhadas entre amigos, viagens, casas, eventos e outros grupos.
+
+Os usuários podem registrar gastos, informar quem participou de cada despesa e acompanhar automaticamente quanto cada pessoa deve pagar.
+
+O Rachador também utiliza inteligência artificial para facilitar o registro e a organização de despesas, incluindo recursos para interpretar gastos informados por voz.
+
+## Páginas
+
+- [Página inicial](/): conheça o Rachador e acesse a organização de contas e gastos em grupo.
+- [Criar um grupo](/criar): crie um novo grupo e informe os participantes e suas chaves Pix.
